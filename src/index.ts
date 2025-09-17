@@ -211,14 +211,16 @@ const GetStudentAvatarSchema = z.object({
   studentId: z.number().optional(), // 学生ID
   name: z.string().optional(), // 学生名称
   language: z.string().default("cn"),
-  avatarType: z.string().default("portrait").optional() // 头像类型：portrait, collection, etc.
+  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, etc.
+  format: z.string().default("base64").optional() // 输出格式：base64, markdown, md
 });
 
 const GetStudentVoiceSchema = z.object({
   studentId: z.number().optional(), // 学生ID
   name: z.string().optional(), // 学生名称
   language: z.string().default("cn"),
-  voiceType: z.string().default("all").optional() // 语音类型：normal, battle, lobby, event, all
+  voiceType: z.string().default("all").optional(), // 语音类型：normal, battle, lobby, event, all
+  format: z.string().default("text").optional() // 输出格式：text, markdown, md
 });
 
 // 缓存类
@@ -984,12 +986,12 @@ class BlueArchiveMCPServer {
           },
           {
             name: "get_student_avatar",
-            description: "获取学生头像图片，支持通过学生ID或名称查询",
+            description: "获取学生头像图片，支持通过学生ID或名称查询。支持两种输出格式：base64（默认）返回Base64编码的图片数据，markdown/md格式返回可直接在Markdown中显示的图片链接。建议在需要在Markdown中展示图片时使用format=markdown参数。",
             inputSchema: zodToJsonSchema(GetStudentAvatarSchema) as ToolInput,
           },
           {
             name: "get_student_voice",
-            description: "获取学生语音信息，支持通过学生ID或名称查询不同类型的语音",
+            description: "获取学生语音信息，支持通过学生ID或名称查询不同类型的语音。支持两种输出格式：text（默认）返回纯文本格式的语音信息，markdown/md格式返回包含音频链接的Markdown格式文本，可直接在支持Markdown的环境中播放音频。建议在需要在Markdown中展示音频时使用format=markdown参数。",
             inputSchema: zodToJsonSchema(GetStudentVoiceSchema) as ToolInput,
           }
         ];
@@ -1583,7 +1585,7 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentAvatar(args: any) {
-    const { studentId, name, language, avatarType } = args;
+    const { studentId, name, language, avatarType, format = 'base64' } = args;
     
     // 如果提供了学生ID，直接使用
     let targetStudentId = studentId;
@@ -1618,9 +1620,40 @@ class BlueArchiveMCPServer {
     try {
       // 构建头像URL（基于第三方API的URL模式）
       const baseUrl = "https://schaledb.com/images/student";
-      const avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
+      let avatarUrl: string;
       
-      // 下载图片并转换为Base64
+      switch (avatarType?.toLowerCase()) {
+        case 'portrait':
+          avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
+          break;
+        case 'collection':
+          avatarUrl = `${baseUrl}/collection/${targetStudentId}.webp`;
+          break;
+        case 'icon':
+          avatarUrl = `${baseUrl}/icon/${targetStudentId}.webp`;
+          break;
+        default:
+          avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
+      }
+      
+      // 获取学生信息用于显示名称
+      const student = await this.client.getStudentByName(name || targetStudentId.toString(), language);
+      const studentName = student?.Name || `学生 ${targetStudentId}`;
+      const avatarTypeText = avatarType || 'portrait';
+      
+      // 如果请求Markdown格式，直接返回Markdown
+      if (format === 'markdown' || format === 'md') {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${studentName} 的${avatarTypeText}头像：\n\n![${studentName}的头像](${avatarUrl})\n\n**提示**: 在支持Markdown的环境中，上方图片应该能够直接显示。如果无法显示，请检查网络连接或图片链接。\n\n**图片链接**: ${avatarUrl}`
+            }
+          ]
+        };
+      }
+      
+      // 默认返回Base64格式（保持向后兼容）
       const response = await fetch(avatarUrl);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -1634,7 +1667,7 @@ class BlueArchiveMCPServer {
         content: [
           {
             type: "text",
-            text: `学生 ${targetStudentId} 的头像：`
+            text: `${studentName} 的${avatarTypeText}头像：`
           },
           {
             type: "image",
@@ -1656,7 +1689,7 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentVoice(args: any) {
-    const { studentId, name, language, voiceType } = args;
+    const { studentId, name, language, voiceType, format = 'text' } = args;
     
     // 如果提供了学生ID，直接使用
     let targetStudentId = studentId;
@@ -1704,12 +1737,73 @@ class BlueArchiveMCPServer {
         };
       }
       
-      let result = `学生 ${targetStudentId} 的语音信息：\n\n`;
+      // 获取学生信息用于显示名称
+      const student = await this.client.getStudentByName(name || targetStudentId.toString(), language);
+      const studentName = student?.Name || `学生 ${targetStudentId}`;
       
       // 根据voiceType筛选语音类型
       const voiceTypes = voiceType === 'all' ? 
         Object.keys(studentVoices) : 
         [voiceType].filter(type => studentVoices[type]);
+      
+      if (voiceTypes.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `未找到类型为 "${voiceType}" 的语音数据`
+            }
+          ]
+        };
+      }
+      
+      // 如果请求Markdown格式，返回Markdown格式
+      if (format === 'markdown' || format === 'md') {
+        let result = `# ${studentName} 的语音信息\n\n`;
+        
+        voiceTypes.forEach(type => {
+          const voices = studentVoices[type];
+          if (voices && typeof voices === 'object') {
+            result += `## ${type.toUpperCase()} 语音\n\n`;
+            Object.keys(voices).forEach(voiceKey => {
+              const voiceValue = voices[voiceKey];
+              // 格式化语音数据显示
+              if (typeof voiceValue === 'object' && voiceValue !== null) {
+                // 如果是对象，尝试提取有用信息
+                if (voiceValue.text || voiceValue.content) {
+                  result += `- **${voiceKey}**: ${voiceValue.text || voiceValue.content}\n`;
+                } else if (voiceValue.url || voiceValue.file) {
+                  const audioUrl = voiceValue.url || voiceValue.file;
+                  result += `- **${voiceKey}**: [🎵 播放音频](${audioUrl})\n`;
+                  // 如果支持HTML5音频标签，也可以添加
+                  result += `  <audio controls><source src="${audioUrl}" type="audio/mpeg">您的浏览器不支持音频播放。</audio>\n`;
+                } else {
+                  // 如果是复杂对象，显示JSON格式
+                  result += `- **${voiceKey}**: \`\`\`json\n${JSON.stringify(voiceValue, null, 2)}\n\`\`\`\n`;
+                }
+              } else {
+                // 如果是简单值，直接显示
+                result += `- **${voiceKey}**: ${voiceValue}\n`;
+              }
+            });
+            result += '\n';
+          }
+        });
+        
+        result += '\n**提示**: 在支持Markdown的环境中，音频链接应该能够点击播放。如果无法播放，请检查网络连接或音频链接。';
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: result
+            }
+          ]
+        };
+      }
+      
+      // 默认返回文本格式（保持向后兼容）
+      let result = `${studentName} 的语音信息：\n\n`;
       
       voiceTypes.forEach(type => {
         const voices = studentVoices[type];
@@ -1736,10 +1830,6 @@ class BlueArchiveMCPServer {
           result += '\n';
         }
       });
-      
-      if (voiceTypes.length === 0) {
-        result += `未找到类型为 "${voiceType}" 的语音数据`;
-      }
       
       return {
         content: [
