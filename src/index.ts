@@ -211,7 +211,7 @@ const GetStudentAvatarSchema = z.object({
   studentId: z.number().optional(), // 学生ID
   name: z.string().optional(), // 学生名称
   language: z.string().default("cn"),
-  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, icon, lobby, swimsuit
+  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, icon, lobby
   format: z.string().default("markdown").optional() // 输出格式：markdown, md
 });
 
@@ -986,7 +986,7 @@ class BlueArchiveMCPServer {
           },
           {
             name: "get_student_avatar",
-            description: "获取学生头像图片，支持通过学生ID或名称查询。现在仅支持Markdown格式输出，返回可直接在Markdown中显示的图片链接。支持多种头像类型：portrait（肖像，默认）、collection（收藏）、icon（图标）、lobby（大厅立绘）、swimsuit（泳装）。不同类型的头像适用于不同场景，LLM可以根据需要选择合适的头像类型。",
+            description: "获取学生头像图片，支持通过学生ID或名称查询。现在仅支持Markdown格式输出，返回可直接在Markdown中显示的图片链接。支持多种头像类型：portrait（全身立绘）、collection（收藏）、icon（头像）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）是不同的角色ID，而非不同的头像类型。LLM可以根据需要选择合适的头像类型。",
             inputSchema: zodToJsonSchema(GetStudentAvatarSchema) as ToolInput,
           },
           {
@@ -1635,9 +1635,6 @@ class BlueArchiveMCPServer {
         case 'lobby':
           avatarUrl = `${baseUrl}/lobby/${targetStudentId}.webp`;
           break;
-        case 'swimsuit':
-          avatarUrl = `${baseUrl}/swimsuit/${targetStudentId}.webp`;
-          break;
         default:
           avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
       }
@@ -1651,8 +1648,7 @@ class BlueArchiveMCPServer {
         portrait: "肖像",
         collection: "收藏",
         icon: "图标", 
-        lobby: "大厅立绘",
-        swimsuit: "泳装"
+        lobby: "大厅立绘"
       };
       
       const typeName = avatarTypeNames[avatarType?.toLowerCase() as keyof typeof avatarTypeNames] || avatarType || 'portrait';
