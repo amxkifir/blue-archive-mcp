@@ -1615,23 +1615,44 @@ class BlueArchiveMCPServer {
       };
     }
     
-    // 构建头像URL（基于第三方API的URL模式）
-    const baseUrl = "https://schaledb.com/images/student";
-    const avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
-    
-    return {
-      content: [
-        {
-          type: "text",
-          text: `学生 ${targetStudentId} 的头像：`
-        },
-        {
-          type: "image",
-          data: avatarUrl,
-          mimeType: "image/webp"
-        }
-      ]
-    };
+    try {
+      // 构建头像URL（基于第三方API的URL模式）
+      const baseUrl = "https://schaledb.com/images/student";
+      const avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
+      
+      // 下载图片并转换为Base64
+      const response = await fetch(avatarUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64Data = buffer.toString('base64');
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `学生 ${targetStudentId} 的头像：`
+          },
+          {
+            type: "image",
+            data: base64Data,
+            mimeType: "image/webp"
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `获取头像时出错: ${error instanceof Error ? error.message : '未知错误'}\n请检查学生ID是否正确或网络连接是否正常。`
+          }
+        ]
+      };
+    }
   }
 
   private async handleGetStudentVoice(args: any) {
@@ -1695,7 +1716,22 @@ class BlueArchiveMCPServer {
         if (voices && typeof voices === 'object') {
           result += `${type.toUpperCase()} 语音：\n`;
           Object.keys(voices).forEach(voiceKey => {
-            result += `  - ${voiceKey}: ${voices[voiceKey]}\n`;
+            const voiceValue = voices[voiceKey];
+            // 格式化语音数据显示
+            if (typeof voiceValue === 'object' && voiceValue !== null) {
+              // 如果是对象，尝试提取有用信息
+              if (voiceValue.text || voiceValue.content) {
+                result += `  - ${voiceKey}: ${voiceValue.text || voiceValue.content}\n`;
+              } else if (voiceValue.url || voiceValue.file) {
+                result += `  - ${voiceKey}: ${voiceValue.url || voiceValue.file}\n`;
+              } else {
+                // 如果是复杂对象，显示JSON格式
+                result += `  - ${voiceKey}: ${JSON.stringify(voiceValue, null, 2)}\n`;
+              }
+            } else {
+              // 如果是简单值，直接显示
+              result += `  - ${voiceKey}: ${voiceValue}\n`;
+            }
           });
           result += '\n';
         }
