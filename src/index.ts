@@ -223,6 +223,30 @@ const GetStudentVoiceSchema = z.object({
   format: z.string().default("text").optional() // 输出格式：text, markdown, md
 });
 
+// 新增：角色变体发现工具Schema
+const FindStudentVariantsSchema = z.object({
+  name: z.string(), // 角色名称（支持中文、日文、英文）
+  language: z.string().default("cn"),
+  includeOriginal: z.boolean().default(true), // 是否包含原版角色
+  format: z.string().default("text").optional() // 输出格式：text, markdown, md
+});
+
+// 新增：批量头像获取工具Schema
+const GetMultipleStudentAvatarsSchema = z.object({
+  studentIds: z.array(z.number()), // 学生ID数组
+  language: z.string().default("cn"),
+  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, icon, lobby
+  format: z.string().default("markdown").optional() // 输出格式：markdown, md
+});
+
+// 新增：批量语音获取工具Schema
+const GetMultipleStudentVoicesSchema = z.object({
+  studentIds: z.array(z.number()), // 学生ID数组
+  language: z.string().default("cn"),
+  voiceType: z.string().default("all").optional(), // 语音类型：normal, battle, lobby, event, all
+  format: z.string().default("text").optional() // 输出格式：text, markdown, md
+});
+
 // 缓存类
 class Cache<T> {
   private cache = new Map<string, { data: T; timestamp: number }>();
@@ -906,6 +930,200 @@ class SchaleDBClient {
     // 返回处理后的数据
     return limitedEnemies.map(e => this.simplifyEnemyData(e, detailed));
   }
+
+  // 计算字符串相似度（Levenshtein距离）
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = [];
+    
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
+
+  // 查找角色变体
+  async findStudentVariants(name: string, language: string = 'cn', includeOriginal: boolean = true): Promise<any[]> {
+    const students = await this.getStudentsEnhanced({ language, limit: 1000 });
+    
+    if (students.length === 0) {
+      return [];
+    }
+    
+    const variants: any[] = [];
+    const searchName = name.toLowerCase().trim();
+    
+    for (const student of students) {
+      const studentName = (student.Name || '').toLowerCase().trim();
+      
+      // 完全匹配
+      if (studentName === searchName) {
+        if (includeOriginal) {
+          variants.push(student);
+        }
+        continue;
+      }
+      
+      // 检查是否包含搜索名称（变体检测）
+      if (studentName.includes(searchName) || searchName.includes(studentName)) {
+        variants.push(student);
+        continue;
+      }
+      
+      // 使用编辑距离进行模糊匹配
+      const distance = this.levenshteinDistance(studentName, searchName);
+      const maxLength = Math.max(studentName.length, searchName.length);
+      const similarity = 1 - (distance / maxLength);
+      
+      // 相似度阈值为0.6
+      if (similarity >= 0.6) {
+        variants.push(student);
+      }
+    }
+    
+    // 按相似度排序
+    variants.sort((a, b) => {
+      const aName = (a.Name || '').toLowerCase().trim();
+      const bName = (b.Name || '').toLowerCase().trim();
+      
+      const aSimilarity = 1 - (this.levenshteinDistance(aName, searchName) / Math.max(aName.length, searchName.length));
+      const bSimilarity = 1 - (this.levenshteinDistance(bName, searchName) / Math.max(bName.length, searchName.length));
+      
+      return bSimilarity - aSimilarity;
+    });
+    
+    return variants;
+  }
+
+  // 批量获取学生头像
+  async getMultipleStudentAvatars(studentIds: number[], language: string = 'cn', avatarType: string = 'portrait'): Promise<any[]> {
+    const results: any[] = [];
+    
+    for (const studentId of studentIds) {
+      try {
+        const student = await this.getStudentsEnhanced({ language, limit: 1000 });
+        const targetStudent = student.find(s => s.Id === studentId);
+        
+        if (targetStudent) {
+          const avatarUrl = `https://schaledb.com/images/student/portrait/${studentId}.webp`;
+          results.push({
+            studentId,
+            name: targetStudent.Name,
+            avatarUrl,
+            avatarType,
+            success: true
+          });
+        } else {
+          results.push({
+            studentId,
+            name: null,
+            avatarUrl: null,
+            avatarType,
+            success: false,
+            error: '学生不存在'
+          });
+        }
+      } catch (error) {
+        results.push({
+          studentId,
+          name: null,
+          avatarUrl: null,
+          avatarType,
+          success: false,
+          error: error instanceof Error ? error.message : '未知错误'
+        });
+      }
+    }
+    
+    return results;
+  }
+
+  // 批量获取学生语音
+  async getMultipleStudentVoices(studentIds: number[], language: string = 'cn', voiceType: string = 'all'): Promise<any[]> {
+    const results: any[] = [];
+    
+    try {
+      const voiceData = await this.getVoiceData(language);
+      
+      for (const studentId of studentIds) {
+        try {
+          const student = await this.getStudentsEnhanced({ language, limit: 1000 });
+          const targetStudent = student.find(s => s.Id === studentId);
+          
+          if (targetStudent && voiceData && voiceData[studentId]) {
+            const studentVoices = voiceData[studentId];
+            let filteredVoices = studentVoices;
+            
+            // 根据语音类型筛选
+            if (voiceType !== 'all') {
+              filteredVoices = studentVoices.filter((voice: any) => {
+                const group = voice.Group?.toLowerCase() || '';
+                return group.includes(voiceType.toLowerCase());
+              });
+            }
+            
+            results.push({
+              studentId,
+              name: targetStudent.Name,
+              voices: filteredVoices,
+              voiceType,
+              success: true
+            });
+          } else {
+            results.push({
+              studentId,
+              name: targetStudent?.Name || null,
+              voices: [],
+              voiceType,
+              success: false,
+              error: targetStudent ? '语音数据不存在' : '学生不存在'
+            });
+          }
+        } catch (error) {
+          results.push({
+            studentId,
+            name: null,
+            voices: [],
+            voiceType,
+            success: false,
+            error: error instanceof Error ? error.message : '未知错误'
+          });
+        }
+      }
+    } catch (error) {
+      // 如果获取语音数据失败，为所有学生返回错误
+      for (const studentId of studentIds) {
+        results.push({
+          studentId,
+          name: null,
+          voices: [],
+          voiceType,
+          success: false,
+          error: '无法获取语音数据'
+        });
+      }
+    }
+    
+    return results;
+  }
 }
 
 // MCP 服务器类
@@ -993,6 +1211,21 @@ class BlueArchiveMCPServer {
             name: "get_student_voice",
             description: "获取学生语音信息，支持通过学生ID或名称查询不同类型的语音。支持两种输出格式：text（默认）返回纯文本格式的语音信息，markdown/md格式返回包含音频链接的Markdown格式文本，可直接在支持Markdown的环境中播放音频。建议在需要在Markdown中展示音频时使用format=markdown参数。",
             inputSchema: zodToJsonSchema(GetStudentVoiceSchema) as ToolInput,
+          },
+          {
+            name: "find_student_variants",
+            description: "查找角色的所有变体（如泳装、新春等不同服装版本）。基于名字相似度匹配，帮助LLM快速发现一个角色的所有变体，避免重复查询。支持中文、日文、英文名称搜索。",
+            inputSchema: zodToJsonSchema(FindStudentVariantsSchema) as ToolInput,
+          },
+          {
+            name: "get_multiple_student_avatars",
+            description: "批量获取多个学生的头像图片，提高查询效率。支持通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。返回Markdown格式的图片链接。",
+            inputSchema: zodToJsonSchema(GetMultipleStudentAvatarsSchema) as ToolInput,
+          },
+          {
+            name: "get_multiple_student_voices",
+            description: "批量获取多个学生的语音信息，提高查询效率。支持通过学生ID数组一次性获取多个角色的语音，避免多次单独调用。支持text和markdown两种输出格式。",
+            inputSchema: zodToJsonSchema(GetMultipleStudentVoicesSchema) as ToolInput,
           }
         ];
 
@@ -1052,6 +1285,18 @@ class BlueArchiveMCPServer {
           case 'get_student_voice': {
             const validatedArgs = GetStudentVoiceSchema.parse(args);
             return await this.handleGetStudentVoice(validatedArgs);
+          }
+          case 'find_student_variants': {
+            const validatedArgs = FindStudentVariantsSchema.parse(args);
+            return await this.handleFindStudentVariants(validatedArgs);
+          }
+          case 'get_multiple_student_avatars': {
+            const validatedArgs = GetMultipleStudentAvatarsSchema.parse(args);
+            return await this.handleGetMultipleStudentAvatars(validatedArgs);
+          }
+          case 'get_multiple_student_voices': {
+            const validatedArgs = GetMultipleStudentVoicesSchema.parse(args);
+            return await this.handleGetMultipleStudentVoices(validatedArgs);
           }
           default:
             throw new McpError(
@@ -1817,6 +2062,171 @@ class BlueArchiveMCPServer {
         }
       });
       
+      return {
+        content: [
+          {
+            type: "text",
+            text: result
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `获取语音数据时出错: ${error instanceof Error ? error.message : '未知错误'}`
+          }
+        ]
+      };
+    }
+  }
+
+  // 新增的处理函数
+  private async handleFindStudentVariants(args: any) {
+    const { name, language, includeOriginal, format } = args;
+    
+    try {
+      const variants = await this.client.findStudentVariants(name, language, includeOriginal);
+      
+      if (variants.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `未找到名为 "${name}" 的角色变体`
+            }
+          ]
+        };
+      }
+
+      let result: string;
+      if (format === 'markdown' || format === 'md') {
+        result = `# ${name} 的角色变体\n\n`;
+        result += variants.map(variant => 
+          `- **${variant.name}** (ID: ${variant.id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+        ).join('\n');
+      } else {
+        result = `${name} 的角色变体：\n\n`;
+        result += variants.map(variant => 
+          `${variant.name} (ID: ${variant.id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+        ).join('\n');
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `查找角色变体时出错: ${error instanceof Error ? error.message : '未知错误'}`
+          }
+        ]
+      };
+    }
+  }
+
+  private async handleGetMultipleStudentAvatars(args: any) {
+    const { studentIds, language, avatarType, format } = args;
+    
+    try {
+      const avatars = await this.client.getMultipleStudentAvatars(studentIds, language, avatarType);
+      
+      if (avatars.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "未找到任何头像"
+            }
+          ]
+        };
+      }
+
+      let result: string;
+      if (format === 'markdown' || format === 'md') {
+        result = `# 学生头像合集\n\n`;
+        result += avatars.map(avatar => 
+          `## ${avatar.name}\n![${avatar.name}的${avatar.typeName}](${avatar.url})\n`
+        ).join('\n');
+      } else {
+        result = `学生头像合集：\n\n`;
+        result += avatars.map(avatar => 
+          `${avatar.name}: ${avatar.url}`
+        ).join('\n');
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: result
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `获取头像时出错: ${error instanceof Error ? error.message : '未知错误'}`
+          }
+        ]
+      };
+    }
+  }
+
+  private async handleGetMultipleStudentVoices(args: any) {
+    const { studentIds, language, voiceType, format } = args;
+    
+    try {
+      const voices = await this.client.getMultipleStudentVoices(studentIds, language, voiceType);
+      
+      if (voices.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "未找到任何语音数据"
+            }
+          ]
+        };
+      }
+
+      let result: string;
+      if (format === 'markdown' || format === 'md') {
+        result = `# 学生语音合集\n\n`;
+        voices.forEach(voice => {
+          result += `## ${voice.name}\n\n`;
+          Object.entries(voice.voices).forEach(([type, voiceList]) => {
+            result += `### ${type}\n`;
+            (voiceList as any[]).forEach((v, index) => {
+              result += `- **${v.Group || '默认'}**: [${v.TranscriptionCn || v.Transcription || '播放'}](${v.AudioClip})\n`;
+            });
+            result += '\n';
+          });
+        });
+      } else {
+        result = `学生语音合集：\n\n`;
+        voices.forEach(voice => {
+          result += `${voice.name}:\n`;
+          Object.entries(voice.voices).forEach(([type, voiceList]) => {
+            result += `  ${type}:\n`;
+            (voiceList as any[]).forEach((v, index) => {
+              result += `    ${v.Group || '默认'}: ${v.AudioClip}\n`;
+            });
+          });
+          result += '\n';
+        });
+      }
+
       return {
         content: [
           {
