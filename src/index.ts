@@ -211,8 +211,8 @@ const GetStudentAvatarSchema = z.object({
   studentId: z.number().optional(), // 学生ID
   name: z.string().optional(), // 学生名称
   language: z.string().default("cn"),
-  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, etc.
-  format: z.string().default("base64").optional() // 输出格式：base64, markdown, md
+  avatarType: z.string().default("portrait").optional(), // 头像类型：portrait, collection, icon, lobby, swimsuit
+  format: z.string().default("markdown").optional() // 输出格式：markdown, md
 });
 
 const GetStudentVoiceSchema = z.object({
@@ -986,7 +986,7 @@ class BlueArchiveMCPServer {
           },
           {
             name: "get_student_avatar",
-            description: "获取学生头像图片，支持通过学生ID或名称查询。支持两种输出格式：base64（默认）返回Base64编码的图片数据，markdown/md格式返回可直接在Markdown中显示的图片链接。建议在需要在Markdown中展示图片时使用format=markdown参数。",
+            description: "获取学生头像图片，支持通过学生ID或名称查询。现在仅支持Markdown格式输出，返回可直接在Markdown中显示的图片链接。支持多种头像类型：portrait（肖像，默认）、collection（收藏）、icon（图标）、lobby（大厅立绘）、swimsuit（泳装）。不同类型的头像适用于不同场景，LLM可以根据需要选择合适的头像类型。",
             inputSchema: zodToJsonSchema(GetStudentAvatarSchema) as ToolInput,
           },
           {
@@ -1585,7 +1585,7 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentAvatar(args: any) {
-    const { studentId, name, language, avatarType, format = 'base64' } = args;
+    const { studentId, name, language, avatarType, format = 'markdown' } = args;
     
     // 如果提供了学生ID，直接使用
     let targetStudentId = studentId;
@@ -1632,6 +1632,12 @@ class BlueArchiveMCPServer {
         case 'icon':
           avatarUrl = `${baseUrl}/icon/${targetStudentId}.webp`;
           break;
+        case 'lobby':
+          avatarUrl = `${baseUrl}/lobby/${targetStudentId}.webp`;
+          break;
+        case 'swimsuit':
+          avatarUrl = `${baseUrl}/swimsuit/${targetStudentId}.webp`;
+          break;
         default:
           avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
       }
@@ -1639,40 +1645,24 @@ class BlueArchiveMCPServer {
       // 获取学生信息用于显示名称
       const student = await this.client.getStudentByName(name || targetStudentId.toString(), language);
       const studentName = student?.Name || `学生 ${targetStudentId}`;
-      const avatarTypeText = avatarType || 'portrait';
       
-      // 如果请求Markdown格式，直接返回Markdown
-      if (format === 'markdown' || format === 'md') {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `${studentName} 的${avatarTypeText}头像：\n\n![${studentName}的头像](${avatarUrl})\n\n**提示**: 在支持Markdown的环境中，上方图片应该能够直接显示。如果无法显示，请检查网络连接或图片链接。\n\n**图片链接**: ${avatarUrl}`
-            }
-          ]
-        };
-      }
+      // 头像类型中文名称映射
+      const avatarTypeNames = {
+        portrait: "肖像",
+        collection: "收藏",
+        icon: "图标", 
+        lobby: "大厅立绘",
+        swimsuit: "泳装"
+      };
       
-      // 默认返回Base64格式（保持向后兼容）
-      const response = await fetch(avatarUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const typeName = avatarTypeNames[avatarType?.toLowerCase() as keyof typeof avatarTypeNames] || avatarType || 'portrait';
       
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64Data = buffer.toString('base64');
-      
+      // 只支持markdown格式输出
       return {
         content: [
           {
             type: "text",
-            text: `${studentName} 的${avatarTypeText}头像：`
-          },
-          {
-            type: "image",
-            data: base64Data,
-            mimeType: "image/webp"
+            text: `![${studentName}的${typeName}](${avatarUrl})`
           }
         ]
       };
