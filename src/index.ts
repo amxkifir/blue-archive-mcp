@@ -898,28 +898,29 @@ class SchaleDBClient {
   async getStudentByName(name: string, language: string = 'cn', detailed: boolean = false): Promise<Student | null> {
     this.logger.log(`按名称精确查询学生: ${name}`);
     
-    // 获取所有学生数据
+    // 获取所有学生数据 - 数据结构是以ID为键的对象
     const data = await this.fetchData(`${language}/students.json`);
-    if (!data || !Array.isArray(data)) {
+    if (!data || typeof data !== 'object') {
       return null;
     }
 
     // 精确匹配学生名称
     const normalizedSearchName = name.toLowerCase().trim();
-    const student = data.find((student: Student) => {
-      if (!student.Name) return false;
+    
+    // 遍历所有学生ID
+    for (const studentId of Object.keys(data)) {
+      const student = data[studentId];
+      if (!student || !student.Name) continue;
       
       // 精确匹配名称
       const normalizedStudentName = student.Name.toLowerCase().trim();
-      return normalizedStudentName === normalizedSearchName;
-    });
-
-    if (!student) {
-      return null;
+      if (normalizedStudentName === normalizedSearchName) {
+        // 应用数据精简
+        return this.simplifyStudentData(student, detailed);
+      }
     }
 
-    // 应用数据精简
-    return this.simplifyStudentData(student, detailed);
+    return null;
   }
 
   // 增强的getRaids方法 - 支持数据精简
