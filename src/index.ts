@@ -973,42 +973,50 @@ class SchaleDBClient {
     
     for (const student of students) {
       const studentName = (student.Name || '').toLowerCase().trim();
+      let similarity = 0;
       
       // 完全匹配
       if (studentName === searchName) {
+        similarity = 1.0;
         if (includeOriginal) {
-          variants.push(student);
+          variants.push({
+            ...student,
+            similarity: similarity
+          });
         }
         continue;
       }
       
       // 检查是否包含搜索名称（变体检测）
       if (studentName.includes(searchName) || searchName.includes(studentName)) {
-        variants.push(student);
+        // 计算包含匹配的相似度
+        const longerLength = Math.max(studentName.length, searchName.length);
+        const shorterLength = Math.min(studentName.length, searchName.length);
+        similarity = shorterLength / longerLength;
+        
+        variants.push({
+          ...student,
+          similarity: similarity
+        });
         continue;
       }
       
       // 使用编辑距离进行模糊匹配
       const distance = this.levenshteinDistance(studentName, searchName);
       const maxLength = Math.max(studentName.length, searchName.length);
-      const similarity = 1 - (distance / maxLength);
+      similarity = 1 - (distance / maxLength);
       
       // 相似度阈值为0.6
       if (similarity >= 0.6) {
-        variants.push(student);
+        variants.push({
+          ...student,
+          similarity: similarity
+        });
       }
     }
     
     // 按相似度排序
-    variants.sort((a, b) => {
-      const aName = (a.Name || '').toLowerCase().trim();
-      const bName = (b.Name || '').toLowerCase().trim();
-      
-      const aSimilarity = 1 - (this.levenshteinDistance(aName, searchName) / Math.max(aName.length, searchName.length));
-      const bSimilarity = 1 - (this.levenshteinDistance(bName, searchName) / Math.max(bName.length, searchName.length));
-      
-      return bSimilarity - aSimilarity;
-    });
+    variants.sort((a, b) => b.similarity - a.similarity);
     
     return variants;
   }
@@ -2104,12 +2112,12 @@ class BlueArchiveMCPServer {
       if (format === 'markdown' || format === 'md') {
         result = `# ${name} 的角色变体\n\n`;
         result += variants.map(variant => 
-          `- **${variant.name}** (ID: ${variant.id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+          `- **${variant.名称 || variant.Name}** (ID: ${variant.ID || variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
         ).join('\n');
       } else {
         result = `${name} 的角色变体：\n\n`;
         result += variants.map(variant => 
-          `${variant.name} (ID: ${variant.id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+          `${variant.名称 || variant.Name} (ID: ${variant.ID || variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
         ).join('\n');
       }
 
