@@ -2571,7 +2571,7 @@ ID: ${detailedInfo.Id}
               } else {
                 // 处理非对象类型的语音数据
                 result += `### ${type}_${index + 1}\n`;
-                result += `**🔍 调试信息:** 数据类型为 ${typeof voice}, 值: ${voice}\n\n`;
+                result += `**🔍 调试信息:** 数据类型为 ${typeof voice}, 值: ${JSON.stringify(voice, null, 2)}\n\n`;
               }
             });
           } else if (voices && typeof voices === 'object') {
@@ -2647,7 +2647,7 @@ ID: ${detailedInfo.Id}
                 result += `  - ${group}: [调试] 类型:${typeof voice}, 字段:${Object.keys(voice).join(',')}\n`;
               }
             } else {
-              result += `  - ${type}_${index + 1}: ${voice}\n`;
+              result += `  - ${type}_${index + 1}: ${JSON.stringify(voice, null, 2)}\n`;
             }
           });
           result += '\n';
@@ -2677,7 +2677,7 @@ ID: ${detailedInfo.Id}
               }
             } else {
               // 如果是简单值，直接显示
-              result += `  - ${voiceKey}: ${voiceValue}\n`;
+              result += `  - ${voiceKey}: ${typeof voiceValue === 'object' ? JSON.stringify(voiceValue, null, 2) : voiceValue}\n`;
             }
           });
           result += '\n';
