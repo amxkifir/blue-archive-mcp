@@ -1446,7 +1446,10 @@ class SchaleDBClient {
     // 按相似度排序
     variants.sort((a, b) => b.similarity - a.similarity);
     
-    return variants;
+    // 统一过滤低相似度结果（60%以下）
+    const filteredVariants = variants.filter(variant => variant.similarity >= 0.6);
+    
+    return filteredVariants;
   }
 
   // 辅助方法：转义正则表达式特殊字符
@@ -1598,7 +1601,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.0.0",
+        version: "1.6.0",
       },
       {
         capabilities: {
