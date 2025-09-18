@@ -1343,6 +1343,7 @@ class SchaleDBClient {
     for (const student of students) {
       const studentName = (student.Name || '').toLowerCase().trim();
       let similarity = 0;
+      let isVariant = false;
       
       // 完全匹配
       if (studentName === searchName) {
@@ -1350,27 +1351,81 @@ class SchaleDBClient {
         if (includeOriginal) {
           variants.push({
             ...student,
-            similarity: similarity
+            similarity: similarity,
+            variantType: 'original'
           });
         }
         continue;
       }
       
-      // 检查是否包含搜索名称（变体检测）
-      if (studentName.includes(searchName) || searchName.includes(studentName)) {
-        // 计算包含匹配的相似度
-        const longerLength = Math.max(studentName.length, searchName.length);
-        const shorterLength = Math.min(studentName.length, searchName.length);
-        similarity = shorterLength / longerLength;
-        
+      // 优化的变体检测逻辑：基于角色名称前缀匹配
+      // 检查是否为变体形式：A（新春）、A（泳装）等
+      const variantPattern = new RegExp(`^${this.escapeRegExp(searchName)}[（(](.+?)[）)]$`);
+      const reverseVariantPattern = new RegExp(`^(.+?)[（(](.+?)[）)]$`);
+      
+      // 检查当前学生是否为搜索角色的变体
+      const variantMatch = studentName.match(variantPattern);
+      if (variantMatch) {
+        similarity = 0.95; // 高相似度，因为是明确的变体
+        isVariant = true;
         variants.push({
           ...student,
-          similarity: similarity
+          similarity: similarity,
+          variantType: 'variant',
+          variantSuffix: variantMatch[1]
         });
         continue;
       }
       
-      // 使用编辑距离进行模糊匹配
+      // 检查搜索名称是否为某个角色的变体，而当前学生是原版
+      const searchVariantMatch = searchName.match(reverseVariantPattern);
+      if (searchVariantMatch) {
+        const baseName = searchVariantMatch[1];
+        if (studentName === baseName) {
+          similarity = 0.95; // 高相似度，因为是原版角色
+          isVariant = true;
+          variants.push({
+            ...student,
+            similarity: similarity,
+            variantType: 'base',
+            baseName: baseName
+          });
+          continue;
+        }
+        
+        // 检查是否为同一角色的其他变体
+        const sameBasePattern = new RegExp(`^${this.escapeRegExp(baseName)}[（(](.+?)[）)]$`);
+        const sameBaseMatch = studentName.match(sameBasePattern);
+        if (sameBaseMatch) {
+          similarity = 0.90; // 稍低的相似度，因为是同角色的不同变体
+          isVariant = true;
+          variants.push({
+            ...student,
+            similarity: similarity,
+            variantType: 'sibling_variant',
+            baseName: baseName,
+            variantSuffix: sameBaseMatch[1]
+          });
+          continue;
+        }
+      }
+      
+      // 传统的包含匹配（作为后备方案）
+      if (studentName.includes(searchName) || searchName.includes(studentName)) {
+        // 计算包含匹配的相似度
+        const longerLength = Math.max(studentName.length, searchName.length);
+        const shorterLength = Math.min(studentName.length, searchName.length);
+        similarity = shorterLength / longerLength * 0.8; // 降低传统匹配的权重
+        
+        variants.push({
+          ...student,
+          similarity: similarity,
+          variantType: 'partial_match'
+        });
+        continue;
+      }
+      
+      // 使用编辑距离进行模糊匹配（最后的后备方案）
       const distance = this.levenshteinDistance(studentName, searchName);
       const maxLength = Math.max(studentName.length, searchName.length);
       similarity = 1 - (distance / maxLength);
@@ -1379,7 +1434,8 @@ class SchaleDBClient {
       if (similarity >= 0.6) {
         variants.push({
           ...student,
-          similarity: similarity
+          similarity: similarity,
+          variantType: 'fuzzy_match'
         });
       }
     }
@@ -1388,6 +1444,11 @@ class SchaleDBClient {
     variants.sort((a, b) => b.similarity - a.similarity);
     
     return variants;
+  }
+
+  // 辅助方法：转义正则表达式特殊字符
+  private escapeRegExp(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   // 批量获取学生头像
