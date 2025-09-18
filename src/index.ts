@@ -2164,7 +2164,7 @@ class BlueArchiveMCPServer {
           },
           {
             name: "get_stages",
-            description: "获取关卡信息数据。支持按区域（如主线、活动等）、章节、难度筛选。支持关卡名称搜索。可选择返回详细信息（包含敌人配置、掉落物品、推荐等级等）或简要信息。适用于关卡攻略查询和掉落物查看。",
+            description: "获取关卡信息数据。支持按区域、章节、难度筛选。支持关卡名称搜索。可选择返回详细信息（包含敌人配置、掉落物品、推荐等级等）或简要信息。适用于关卡攻略查询和掉落物查看。\n\n**重要：所有参数必须使用英文**\n- area参数示例：'campaign'(主线), 'event'(活动), 'bounty'(悬赏), 'hard'(困难)\n- difficulty参数示例：'normal'(普通), 'hard'(困难), 'extreme'(极难)\n- 关卡搜索支持：'1-1', '2-3'等格式",
             inputSchema: zodToJsonSchema(GetStagesSchema) as ToolInput,
           },
           {
