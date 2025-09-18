@@ -1430,44 +1430,52 @@ class SchaleDBClient {
     
     for (const studentId of studentIds) {
       try {
-        const student = await this.getStudents({ language, limit: 1000 });
-        const targetStudent = student.find(s => s.Id === studentId);
+        const students = await this.getStudents({ language, limit: 1000 });
+        const targetStudent = students.find(s => s.Id === studentId);
         
         if (targetStudent) {
           // 构建头像URL，根据avatarType参数选择正确的路径
           const baseUrl = "https://schaledb.com/images/student";
           let avatarUrl: string;
+          let typeName: string;
           
           switch (avatarType?.toLowerCase()) {
             case 'portrait':
               avatarUrl = `${baseUrl}/portrait/${studentId}.webp`;
+              typeName = '全身立绘';
               break;
             case 'collection':
               avatarUrl = `${baseUrl}/collection/${studentId}.webp`;
+              typeName = '收藏立绘';
               break;
             case 'icon':
               avatarUrl = `${baseUrl}/icon/${studentId}.webp`;
+              typeName = '头像图标';
               break;
             case 'lobby':
               avatarUrl = `${baseUrl}/lobby/${studentId}.webp`;
+              typeName = '大厅立绘';
               break;
             default:
               avatarUrl = `${baseUrl}/portrait/${studentId}.webp`;
+              typeName = '全身立绘';
           }
           
           results.push({
             studentId,
             name: targetStudent.Name,
-            avatarUrl,
+            url: avatarUrl,
             avatarType,
+            typeName,
             success: true
           });
         } else {
           results.push({
             studentId,
             name: null,
-            avatarUrl: null,
+            url: null,
             avatarType,
+            typeName: null,
             success: false,
             error: '学生不存在'
           });
@@ -1476,8 +1484,9 @@ class SchaleDBClient {
         results.push({
           studentId,
           name: null,
-          avatarUrl: null,
+          url: null,
           avatarType,
+          typeName: null,
           success: false,
           error: error instanceof Error ? error.message : '未知错误'
         });
@@ -1496,8 +1505,8 @@ class SchaleDBClient {
       
       for (const studentId of studentIds) {
         try {
-          const student = await this.getStudents({ language, limit: 1000 });
-          const targetStudent = student.find(s => s.Id === studentId);
+          const students = await this.getStudents({ language, limit: 1000 });
+          const targetStudent = students.find(s => s.Id === studentId);
           
           if (targetStudent && voiceData && voiceData[studentId]) {
             const studentVoices = voiceData[studentId];
@@ -1505,9 +1514,16 @@ class SchaleDBClient {
             
             // 根据语音类型筛选
             if (voiceType !== 'all') {
-              filteredVoices = studentVoices.filter((voice: any) => {
-                const group = voice.Group?.toLowerCase() || '';
-                return group.includes(voiceType.toLowerCase());
+              // 语音数据是对象结构，需要按类型筛选
+              filteredVoices = {};
+              const voiceTypes = voiceType === 'all' ? 
+                Object.keys(studentVoices) : 
+                [voiceType].filter(type => studentVoices[type]);
+              
+              voiceTypes.forEach(type => {
+                if (studentVoices[type]) {
+                  filteredVoices[type] = studentVoices[type];
+                }
               });
             }
             
@@ -1522,7 +1538,7 @@ class SchaleDBClient {
             results.push({
               studentId,
               name: targetStudent?.Name || null,
-              voices: [],
+              voices: {},
               voiceType,
               success: false,
               error: targetStudent ? '语音数据不存在' : '学生不存在'
@@ -1532,7 +1548,7 @@ class SchaleDBClient {
           results.push({
             studentId,
             name: null,
-            voices: [],
+            voices: {},
             voiceType,
             success: false,
             error: error instanceof Error ? error.message : '未知错误'
@@ -2452,16 +2468,42 @@ ID: ${detailedInfo.Id}
       const studentName = student?.Name || `学生 ${targetStudentId}`;
       
       // 根据voiceType筛选语音类型
-      const voiceTypes = voiceType === 'all' ? 
-        Object.keys(studentVoices) : 
-        [voiceType].filter(type => studentVoices[type]);
+      let voiceTypes: string[];
+      if (voiceType === 'all') {
+        voiceTypes = Object.keys(studentVoices);
+      } else {
+        // 检查指定的语音类型是否存在
+        if (studentVoices[voiceType]) {
+          voiceTypes = [voiceType];
+        } else {
+          // 尝试模糊匹配语音类型
+          const availableTypes = Object.keys(studentVoices);
+          const matchedType = availableTypes.find(type => 
+            type.toLowerCase().includes(voiceType.toLowerCase()) ||
+            voiceType.toLowerCase().includes(type.toLowerCase())
+          );
+          
+          if (matchedType) {
+            voiceTypes = [matchedType];
+          } else {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `未找到类型为 "${voiceType}" 的语音数据。可用类型: ${availableTypes.join(', ')}`
+                }
+              ]
+            };
+          }
+        }
+      }
       
       if (voiceTypes.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: `未找到类型为 "${voiceType}" 的语音数据`
+              text: `未找到任何语音数据`
             }
           ]
         };
@@ -2580,12 +2622,12 @@ ID: ${detailedInfo.Id}
       if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         result = `# ${name} 的角色变体\n\n`;
         result += variants.map(variant => 
-          `- **${variant.名称 || variant.Name}** (ID: ${variant.ID || variant.Id})`
+          `- **${variant.名称 || variant.Name}** (ID: ${variant.Id})`
         ).join('\n');
       } else {
         result = `${name} 的角色变体：\n\n`;
         result += variants.map(variant => 
-          `${variant.名称 || variant.Name} (ID: ${variant.ID || variant.Id})`
+          `${variant.名称 || variant.Name} (ID: ${variant.Id})`
         ).join('\n');
       }
 
