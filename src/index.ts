@@ -137,15 +137,17 @@ interface Config {
 interface Stage {
   Id?: number;
   Name?: string;
-  Area?: number;  // Area是数字类型
-  Stage?: number; // 实际的关卡编号
-  Category?: string; // 关卡类别，如"Campaign"
-  Difficulty?: number; // 难度是数字类型
+  Category?: string; // 关卡类别，如"Campaign", "Bounty"等
+  Type?: string; // 关卡类型，如"ChaserA"等
+  Stage?: number; // 关卡编号
   Level?: number; // 关卡等级
   EntryCost?: any[]; // 进入消耗
-  Terrain?: string;
+  StarCondition?: any[]; // 星级条件
+  Terrain?: string; // 地形类型
   Rewards?: any[]; // 奖励列表
-  EnemyList?: any[];
+  Formations?: any[]; // 编队信息
+  ArmorTypes?: number[]; // 护甲类型
+  ServerData?: any; // 服务器数据
   // 兼容性字段
   Chapter?: string;
   StageNumber?: string;
@@ -762,15 +764,17 @@ class SchaleDBClient {
     return {
       Id: stage.Id,
       Name: stage.Name,
-      Area: stage.Area,
-      Stage: stage.Stage, // 关卡编号
       Category: stage.Category, // 关卡类别
-      Difficulty: stage.Difficulty,
+      Type: stage.Type, // 关卡类型
+      Stage: stage.Stage, // 关卡编号
       Level: stage.Level, // 关卡等级
       Terrain: stage.Terrain,
       EntryCost: stage.EntryCost, // 进入消耗
       Rewards: detailed ? stage.Rewards : undefined, // 详细模式下显示奖励
-      EnemyList: detailed ? stage.EnemyList : undefined, // 详细模式下显示敌人
+      StarCondition: detailed ? stage.StarCondition : undefined, // 详细模式下显示星级条件
+      Formations: detailed ? stage.Formations : undefined, // 详细模式下显示编队信息
+      ArmorTypes: detailed ? stage.ArmorTypes : undefined, // 详细模式下显示护甲类型
+      ServerData: detailed ? stage.ServerData : undefined, // 详细模式下显示服务器数据
       // 兼容性字段
       Chapter: stage.Chapter,
       StageNumber: stage.StageNumber,
@@ -1135,29 +1139,32 @@ class SchaleDBClient {
     // 应用筛选条件
     let filteredStages = stages;
 
-    // 按区域筛选 - Area是数字类型
+    // 按类别筛选 - 使用Category字段
     if (area) {
       filteredStages = filteredStages.filter(s => {
-        if (s.Area !== undefined) {
-          // 如果area参数是数字字符串，直接比较
-          const areaNum = parseInt(area);
-          if (!isNaN(areaNum)) {
-            return s.Area === areaNum;
+        if (s.Category) {
+          // 直接匹配类别名称
+          if (s.Category.toLowerCase().includes(area.toLowerCase())) {
+            return true;
           }
-          // 如果是中文描述，进行映射
-          const areaMapping: { [key: string]: number } = {
-            '主线': 1,
-            '困难': 2,
-            '活动': 3,
-            '总力战': 4
+          // 中文映射
+          const categoryMapping: { [key: string]: string[] } = {
+            '主线': ['Campaign'],
+            '活动': ['Event'],
+            '悬赏': ['Bounty'],
+            '总力战': ['TotalAssault', 'Raid'],
+            '困难': ['Hard']
           };
-          return s.Area === areaMapping[area];
+          const mappedCategories = categoryMapping[area];
+          if (mappedCategories) {
+            return mappedCategories.some(cat => s.Category?.toLowerCase().includes(cat.toLowerCase()));
+          }
         }
         return false;
       });
     }
 
-    // 按章节筛选 - Stage字段表示章节内的关卡编号
+    // 按章节筛选 - 使用Stage字段表示关卡编号
     if (chapter) {
       filteredStages = filteredStages.filter(s => {
         if (s.Stage !== undefined) {
@@ -1166,48 +1173,49 @@ class SchaleDBClient {
             return s.Stage === chapterNum;
           }
         }
-        return false;
-      });
-    }
-
-    // 按难度筛选 - Difficulty是数字类型
-    if (difficulty) {
-      filteredStages = filteredStages.filter(s => {
-        if (s.Difficulty !== undefined) {
-          const difficultyNum = parseInt(difficulty);
-          if (!isNaN(difficultyNum)) {
-            return s.Difficulty === difficultyNum;
-          }
-          // 如果是中文或英文描述，进行映射
-          const difficultyMapping: { [key: string]: number } = {
-            // 中文映射
-            '普通': 0,
-            '困难': 1,
-            '简单': 0,
-            '极难': 2,
-            // 英文映射
-            'Normal': 0,
-            'Hard': 1,
-            'Easy': 0,
-            'Extreme': 2,
-            // 小写英文映射
-            'normal': 0,
-            'hard': 1,
-            'easy': 0,
-            'extreme': 2
-          };
-          return s.Difficulty === difficultyMapping[difficulty];
+        // 也可以通过名称匹配章节
+        if (s.Name && chapter) {
+          return s.Name.includes(chapter);
         }
         return false;
       });
     }
 
-    // 智能搜索
+    // 按难度筛选 - 使用Level字段或Category字段
+    if (difficulty) {
+      filteredStages = filteredStages.filter(s => {
+        // 通过Level字段筛选
+        if (s.Level !== undefined) {
+          const difficultyNum = parseInt(difficulty);
+          if (!isNaN(difficultyNum)) {
+            return s.Level === difficultyNum;
+          }
+        }
+        // 通过Category字段筛选难度
+        if (s.Category) {
+          const difficultyMapping: { [key: string]: string[] } = {
+            '普通': ['Normal', 'Campaign'],
+            '困难': ['Hard', 'Difficult'],
+            '简单': ['Easy', 'Normal'],
+            '极难': ['Extreme', 'Hell']
+          };
+          const mappedDifficulties = difficultyMapping[difficulty];
+          if (mappedDifficulties) {
+            return mappedDifficulties.some(diff => s.Category?.toLowerCase().includes(diff.toLowerCase()));
+          }
+          // 直接匹配
+          return s.Category.toLowerCase().includes(difficulty.toLowerCase());
+        }
+        return false;
+      });
+    }
+
+    // 智能搜索 - 只在名称和章节字段中搜索，避免在数字字段中搜索文本
     if (search) {
       filteredStages = this.smartSearch(
         filteredStages, 
         search, 
-        ['Name', 'Area', 'Chapter', 'Difficulty']
+        ['Name', 'Chapter', 'StageNumber']
       );
     }
 
