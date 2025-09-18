@@ -1,6 +1,6 @@
 {
   "name": "blue-archive-mcp",
-  "version": "1.6.4",
+  "version": "1.7.0",
   "description": "MCP server for Blue Archive game data queries",
   "main": "dist/index.js",
   "type": "module",

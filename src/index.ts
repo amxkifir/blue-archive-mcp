@@ -1634,7 +1634,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.6.4",
+        version: "1.7.0",
       },
       {
         capabilities: {
