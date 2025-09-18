@@ -894,18 +894,32 @@ class SchaleDBClient {
     return limitedStudents.map(student => this.simplifyStudentData(student, detailed));
   }
 
-  // 通过名称查询学生
+  // 通过名称查询学生 - 精确匹配
   async getStudentByName(name: string, language: string = 'cn', detailed: boolean = false): Promise<Student | null> {
-    this.logger.log(`按名称查询学生: ${name}`);
+    this.logger.log(`按名称精确查询学生: ${name}`);
     
-    const students = await this.getStudents({ 
-      language, 
-      search: name, 
-      limit: 1, 
-      detailed 
+    // 获取所有学生数据
+    const data = await this.fetchData(`${language}/students.json`);
+    if (!data || !Array.isArray(data)) {
+      return null;
+    }
+
+    // 精确匹配学生名称
+    const normalizedSearchName = name.toLowerCase().trim();
+    const student = data.find((student: Student) => {
+      if (!student.Name) return false;
+      
+      // 精确匹配名称
+      const normalizedStudentName = student.Name.toLowerCase().trim();
+      return normalizedStudentName === normalizedSearchName;
     });
-    
-    return students.length > 0 ? students[0] || null : null;
+
+    if (!student) {
+      return null;
+    }
+
+    // 应用数据精简
+    return this.simplifyStudentData(student, detailed);
   }
 
   // 增强的getRaids方法 - 支持数据精简
