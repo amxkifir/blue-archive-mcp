@@ -137,15 +137,21 @@ interface Config {
 interface Stage {
   Id?: number;
   Name?: string;
-  Area?: string;
+  Area?: number;  // Area是数字类型
+  Stage?: number; // 实际的关卡编号
+  Category?: string; // 关卡类别，如"Campaign"
+  Difficulty?: number; // 难度是数字类型
+  Level?: number; // 关卡等级
+  EntryCost?: any[]; // 进入消耗
+  Terrain?: string;
+  Rewards?: any[]; // 奖励列表
+  EnemyList?: any[];
+  // 兼容性字段
   Chapter?: string;
-  Difficulty?: string;
   StageNumber?: string;
   APCost?: number;
-  Terrain?: string;
   RecommendLevel?: number;
   DropList?: any[];
-  EnemyList?: any[];
 }
 
 interface Item {
@@ -757,11 +763,20 @@ class SchaleDBClient {
       Id: stage.Id,
       Name: stage.Name,
       Area: stage.Area,
-      Chapter: stage.Chapter,
+      Stage: stage.Stage, // 关卡编号
+      Category: stage.Category, // 关卡类别
       Difficulty: stage.Difficulty,
+      Level: stage.Level, // 关卡等级
+      Terrain: stage.Terrain,
+      EntryCost: stage.EntryCost, // 进入消耗
+      Rewards: detailed ? stage.Rewards : undefined, // 详细模式下显示奖励
+      EnemyList: detailed ? stage.EnemyList : undefined, // 详细模式下显示敌人
+      // 兼容性字段
+      Chapter: stage.Chapter,
+      StageNumber: stage.StageNumber,
       APCost: stage.APCost,
       RecommendLevel: stage.RecommendLevel,
-      Terrain: stage.Terrain
+      DropList: stage.DropList
     };
   }
 
@@ -994,25 +1009,60 @@ class SchaleDBClient {
     // 应用筛选条件
     let filteredStages = stages;
 
-    // 按区域筛选
+    // 按区域筛选 - Area是数字类型
     if (area) {
-      filteredStages = filteredStages.filter(s => 
-        s.Area && s.Area.toLowerCase().includes(area.toLowerCase())
-      );
+      filteredStages = filteredStages.filter(s => {
+        if (s.Area !== undefined) {
+          // 如果area参数是数字字符串，直接比较
+          const areaNum = parseInt(area);
+          if (!isNaN(areaNum)) {
+            return s.Area === areaNum;
+          }
+          // 如果是中文描述，进行映射
+          const areaMapping: { [key: string]: number } = {
+            '主线': 1,
+            '困难': 2,
+            '活动': 3,
+            '总力战': 4
+          };
+          return s.Area === areaMapping[area];
+        }
+        return false;
+      });
     }
 
-    // 按章节筛选
+    // 按章节筛选 - Stage字段表示章节内的关卡编号
     if (chapter) {
-      filteredStages = filteredStages.filter(s => 
-        s.Chapter && s.Chapter.toLowerCase().includes(chapter.toLowerCase())
-      );
+      filteredStages = filteredStages.filter(s => {
+        if (s.Stage !== undefined) {
+          const chapterNum = parseInt(chapter);
+          if (!isNaN(chapterNum)) {
+            return s.Stage === chapterNum;
+          }
+        }
+        return false;
+      });
     }
 
-    // 按难度筛选
+    // 按难度筛选 - Difficulty是数字类型
     if (difficulty) {
-      filteredStages = filteredStages.filter(s => 
-        s.Difficulty && s.Difficulty.toLowerCase().includes(difficulty.toLowerCase())
-      );
+      filteredStages = filteredStages.filter(s => {
+        if (s.Difficulty !== undefined) {
+          const difficultyNum = parseInt(difficulty);
+          if (!isNaN(difficultyNum)) {
+            return s.Difficulty === difficultyNum;
+          }
+          // 如果是中文描述，进行映射
+          const difficultyMapping: { [key: string]: number } = {
+            '简单': 0,
+            '普通': 1,
+            '困难': 2,
+            '极难': 3
+          };
+          return s.Difficulty === difficultyMapping[difficulty];
+        }
+        return false;
+      });
     }
 
     // 智能搜索

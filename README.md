@@ -104,12 +104,12 @@ npm start
 **参数：**
 - `includeRegions` (boolean): 是否包含地区信息，默认 true
 
-## 在 Claude Desktop 中使用
+## 在 LLM assistant 中使用
 
 ### 1. 配置服务器
 
-在 `%APPDATA%/Claude/claude_desktop_config.json` 或 `~/Library/Application Support/Claude/claude_desktop_config.json` 中添加：
 
+使用json快速配置：
 ```json
 {
   "mcpServers": {
@@ -123,13 +123,13 @@ npm start
 
 **注意：Windows 路径使用双斜杠或正斜杠**
 
-### 2. 重启 Claude Desktop
+### 2. 重启 LLM assistant
 
-保存配置文件后重启 Claude Desktop，MCP 工具就会加载完成。
+保存配置文件后重启 LLM assistant，MCP 工具就会加载完成。
 
 ### 3. 使用方法
 
-在 Claude 中可以直接使用自然语言查询：
+在 LLM assistant 中可以直接使用自然语言查询：
 
 ```
 查询一下阿露的详细信息
@@ -217,10 +217,10 @@ node comprehensive_test.cjs
 ### 数据加载失败
 1. 检查网络连接
 2. 确认 SchaleDB 服务可用
-3. 查看 Claude Desktop 日志
+3. 查看 LLM assistant 日志
 
 ### 工具不显示
-1. 重启 Claude Desktop
+1. 重启 LLM assistant
 2. 检查配置文件语法
 3. 确认服务器进程正在运行
 
@@ -235,7 +235,6 @@ node comprehensive_test.cjs
   - 支持多种语音类型（战斗、大厅、活动等）
   - 添加音频播放链接和控件
   - 批量语音获取功能
-- **预计时间**: 下个版本
 
 #### 2. 学生技能详情 ⚡
 - **目标**: 提供完整的学生技能信息
@@ -244,7 +243,6 @@ node comprehensive_test.cjs
   - 技能升级数据
   - 技能动画和图标
   - 技能搭配推荐
-- **预计时间**: 2-3周内
 
 #### 3. 装备强化系统 🔧
 - **目标**: 完善装备相关功能
@@ -253,7 +251,6 @@ node comprehensive_test.cjs
   - 装备获取途径详情
   - 装备搭配推荐
   - 装备效果计算器
-- **预计时间**: 1个月内
 
 #### 4. 活动和关卡信息 🎯
 - **目标**: 添加游戏内容查询功能
@@ -262,7 +259,6 @@ node comprehensive_test.cjs
   - 活动关卡详情
   - 掉落物品查询
   - 关卡攻略建议
-- **预计时间**: 1-2个月内
 
 #### 5. 学生培养指南 📚
 - **目标**: 提供角色培养建议
@@ -271,7 +267,6 @@ node comprehensive_test.cjs
   - 培养优先级推荐
   - 技能升级建议
   - 装备搭配方案
-- **预计时间**: 2个月内
 
 #### 6. 数据可视化 📊
 - **目标**: 提供图表和可视化数据
@@ -280,7 +275,6 @@ node comprehensive_test.cjs
   - 装备效果可视化
   - 团队战数据分析
   - 活动奖励统计
-- **预计时间**: 3个月内
 
 ### 🔮 长期规划
 
