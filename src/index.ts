@@ -184,11 +184,30 @@ interface Furniture {
 
 interface Enemy {
   Id?: number;
+  DevName?: string;
   Name?: string;
-  Type?: string;
+  SquadType?: string;
   Rank?: string;
-  ArmorType?: string;
   BulletType?: string;
+  ArmorType?: string;
+  Size?: string;
+  Icon?: string;
+  StabilityPoint?: number;
+  StabilityRate?: number;
+  AttackPower1?: number;
+  AttackPower100?: number;
+  MaxHP1?: number;
+  MaxHP100?: number;
+  DefensePower1?: number;
+  DefensePower100?: number;
+  HealPower1?: number;
+  HealPower100?: number;
+  DodgePoint?: number;
+  AccuracyPoint?: number;
+  CriticalPoint?: number;
+  Range?: number;
+  // 保留原有字段以兼容
+  Type?: string;
   AttackType?: string;
   DefenseType?: string;
   Level?: number;
@@ -199,9 +218,6 @@ interface Enemy {
   Evasion?: number;
   CriticalRate?: number;
   CriticalDamage?: number;
-  StabilityRate?: number;
-  StabilityPoint?: number;
-  Range?: number;
   MoveSpeed?: number;
   AmmoCount?: number;
   AmmoCost?: number;
@@ -892,20 +908,39 @@ class SchaleDBClient {
   }
 
   private simplifyEnemyData(enemy: Enemy, detailed: boolean = false): any {
-    return {
+    const baseData = {
       Id: enemy.Id,
       Name: enemy.Name,
-      Type: enemy.Type,
+      SquadType: enemy.SquadType,
       Rank: enemy.Rank,
       ArmorType: enemy.ArmorType,
       BulletType: enemy.BulletType,
-      Level: enemy.Level,
-      HP: enemy.HP,
-      Attack: enemy.Attack,
-      Defense: enemy.Defense,
-      WeaponType: enemy.WeaponType,
-      Terrain: enemy.Terrain
+      Size: enemy.Size
     };
+
+    if (detailed) {
+      return {
+        ...baseData,
+        DevName: enemy.DevName,
+        Icon: enemy.Icon,
+        StabilityPoint: enemy.StabilityPoint,
+        StabilityRate: enemy.StabilityRate,
+        AttackPower1: enemy.AttackPower1,
+        AttackPower100: enemy.AttackPower100,
+        MaxHP1: enemy.MaxHP1,
+        MaxHP100: enemy.MaxHP100,
+        DefensePower1: enemy.DefensePower1,
+        DefensePower100: enemy.DefensePower100,
+        HealPower1: enemy.HealPower1,
+        HealPower100: enemy.HealPower100,
+        DodgePoint: enemy.DodgePoint,
+        AccuracyPoint: enemy.AccuracyPoint,
+        CriticalPoint: enemy.CriticalPoint,
+        Range: enemy.Range
+      };
+    }
+
+    return baseData;
   }
 
   // 中英文映射表
@@ -1182,7 +1217,28 @@ class SchaleDBClient {
   }
 
   async getEnemies(language: string = 'cn'): Promise<any[]> {
-    return await this.fetchData(`${language}/enemies.json`);
+    const data = await this.fetchData(`${language}/enemies.json`);
+    
+    // 处理数据结构：如果数据包含Enemies对象，则提取其值
+    if (data && typeof data === 'object' && data.Enemies) {
+      return Object.values(data.Enemies);
+    }
+    
+    // 如果数据已经是数组，直接返回
+    if (Array.isArray(data)) {
+      return data;
+    }
+    
+    // 如果数据是对象但不包含Enemies字段，尝试获取第一个数组值
+    if (data && typeof data === 'object') {
+      const values = Object.values(data);
+      const firstArray = values.find(value => Array.isArray(value));
+      if (firstArray) {
+        return firstArray;
+      }
+    }
+    
+    return [];
   }
 
   async getVoiceData(language: string = 'cn'): Promise<any> {
@@ -1741,7 +1797,14 @@ class SchaleDBClient {
     // 处理数据格式
     let enemies: Enemy[];
     if (data && typeof data === 'object' && !Array.isArray(data)) {
-      enemies = Object.values(data) as Enemy[];
+      // 如果数据有Enemies键，使用它的值（对象形式）
+      if (data.Enemies && typeof data.Enemies === 'object') {
+        enemies = Object.values(data.Enemies) as Enemy[];
+      } else {
+        // 查找第一个数组类型的值
+        const arrayValues = Object.values(data).filter(val => Array.isArray(val));
+        enemies = arrayValues.length > 0 ? arrayValues[0] as Enemy[] : [];
+      }
     } else {
       enemies = Array.isArray(data) ? data : [];
     }
@@ -2117,7 +2180,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.7.4",
+        version: "1.7.5",
       },
       {
         capabilities: {
@@ -3405,8 +3468,8 @@ ID: ${detailedInfo.Id}
   }
 }
 
-// 导出BlueArchiveMCPServer类供外部使用
-export { BlueArchiveMCPServer };
+// 导出BlueArchiveMCPServer类和SchaleDBClient类供外部使用
+export { BlueArchiveMCPServer, SchaleDBClient };
 
 // 主函数
 async function main() {
