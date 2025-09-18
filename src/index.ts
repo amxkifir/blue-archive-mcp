@@ -542,11 +542,13 @@ class SchaleDBClient {
   private config: MCPConfig;
   private logger: Logger;
   private cache: Cache<any>;
+  private localizationCache: Cache<any>;
 
   constructor(config: Partial<MCPConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.logger = new Logger(this.config.logLevel);
     this.cache = new Cache<any>(this.config.cacheTimeout / (60 * 1000));
+    this.localizationCache = new Cache<any>(120); // 本地化数据缓存2小时
   }
 
   private async fetchData(endpoint: string): Promise<any> {
@@ -760,15 +762,95 @@ class SchaleDBClient {
     };
   }
 
-  private simplifyStageData(stage: Stage, detailed: boolean = false): any {
+  // 创建可搜索的关卡编号字段
+  private createSearchableStageNumber(stage: Stage): string {
+    const parts: string[] = [];
+    
+    // 添加原始关卡编号
+    if (stage.StageNumber) {
+      parts.push(stage.StageNumber);
+    }
+    
+    // 添加数字形式的关卡编号
+    if (stage.Stage) {
+      parts.push(stage.Stage.toString());
+    }
+    
+    // 添加章节-关卡格式
+    if (stage.Chapter && stage.Stage) {
+      parts.push(`${stage.Chapter}-${stage.Stage}`);
+    }
+    
+    // 添加ID
+    if (stage.Id) {
+      parts.push(stage.Id.toString());
+    }
+    
+    return parts.join(' ');
+  }
+
+  private simplifyStageData(stage: Stage, detailed: boolean = false, language: string = 'cn', localization?: any): any {
+    const generatedName = this.generateStageName(stage, localization || {});
+    
+    // 地形本地化映射
+    const terrainMapping: { [key: string]: string } = {
+      'Street': '街道',
+      'Outdoor': '室外', 
+      'Indoor': '室内'
+    };
+    
+    // 从ID推导章节信息和关卡编号
+    let derivedChapter = stage.Chapter;
+    let derivedStageNumber = stage.StageNumber;
+    
+    if (stage.Id) {
+      const idStr = stage.Id.toString();
+      
+      // 如果没有章节信息，尝试从ID推导
+      if (!derivedChapter) {
+        if (idStr.length >= 4) {
+          // 尝试从ID的前2位推导章节
+          const chapterNum = parseInt(idStr.substring(0, 2));
+          if (!isNaN(chapterNum) && chapterNum > 0) {
+            derivedChapter = chapterNum.toString();
+          }
+        } else if (idStr.length >= 2) {
+          // 对于较短的ID，尝试从前1位推导
+          const chapterNum = parseInt(idStr.substring(0, 1));
+          if (!isNaN(chapterNum) && chapterNum > 0) {
+            derivedChapter = chapterNum.toString();
+          }
+        }
+      }
+      
+      // 如果没有关卡编号，尝试从ID推导
+      if (!derivedStageNumber) {
+        if (idStr.length >= 4) {
+          // 尝试从ID的后2位推导关卡编号
+          const stageNum = parseInt(idStr.substring(2, 4));
+          if (!isNaN(stageNum)) {
+            derivedStageNumber = stageNum.toString();
+          }
+        } else if (idStr.length >= 2) {
+          // 对于较短的ID，尝试从后1位推导
+          const stageNum = parseInt(idStr.substring(1));
+          if (!isNaN(stageNum)) {
+            derivedStageNumber = stageNum.toString();
+          }
+        }
+      }
+    }
+    
     return {
       Id: stage.Id,
-      Name: stage.Name,
+      Name: stage.Name || generatedName || `关卡 ${stage.Id}`, // 优先使用原始名称，然后是生成名称
+      GeneratedName: generatedName, // 添加生成名称字段
       Category: stage.Category, // 关卡类别
       Type: stage.Type, // 关卡类型
       Stage: stage.Stage, // 关卡编号
       Level: stage.Level, // 关卡等级
       Terrain: stage.Terrain,
+      TerrainCN: stage.Terrain ? terrainMapping[stage.Terrain] || stage.Terrain : undefined, // 中文地形名称
       EntryCost: stage.EntryCost, // 进入消耗
       Rewards: detailed ? stage.Rewards : undefined, // 详细模式下显示奖励
       StarCondition: detailed ? stage.StarCondition : undefined, // 详细模式下显示星级条件
@@ -776,8 +858,9 @@ class SchaleDBClient {
       ArmorTypes: detailed ? stage.ArmorTypes : undefined, // 详细模式下显示护甲类型
       ServerData: detailed ? stage.ServerData : undefined, // 详细模式下显示服务器数据
       // 兼容性字段
-      Chapter: stage.Chapter,
-      StageNumber: stage.StageNumber,
+      Chapter: derivedChapter, // 使用推导的章节信息
+      StageNumber: derivedStageNumber, // 使用推导的关卡编号
+      SearchableStageNumber: derivedStageNumber, // 添加可搜索的关卡编号字段
       APCost: stage.APCost,
       RecommendLevel: stage.RecommendLevel,
       DropList: stage.DropList
@@ -1106,6 +1189,79 @@ class SchaleDBClient {
     return await this.fetchData(`${language}/voice.json`);
   }
 
+  // 获取本地化数据
+  async getLocalizationData(language: string = 'cn'): Promise<any> {
+    const cacheKey = `localization_${language}`;
+    const cached = this.localizationCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const data = await this.fetchData(`${language}/localization.json`);
+    this.localizationCache.set(cacheKey, data);
+    return data;
+  }
+
+  // 生成关卡名称
+  private generateStageName(stage: Stage, localizationData: any): string | undefined {
+    try {
+      // 根据关卡ID和Stage字段构建名称
+      let name = '';
+      
+      // 根据Category构建基础名称
+      if (stage.Category) {
+        const categoryName = this.getCategoryDisplayName(stage.Category);
+        
+        // 使用Stage字段作为关卡编号
+        if (stage.Stage) {
+          name = `${categoryName} ${stage.Stage}`;
+        } else {
+          name = `${categoryName}`;
+        }
+        
+        // 添加等级信息
+        if (stage.Level) {
+          name += `-${stage.Level}`;
+        }
+        
+        // 添加地形信息
+        if (stage.Terrain) {
+          name += ` (${stage.Terrain})`;
+        }
+      } else {
+        // 没有Category时，使用ID构建名称
+        if (stage.Stage) {
+          name = `关卡 ${stage.Stage}`;
+        } else {
+          name = `关卡 ${stage.Id || 'Unknown'}`;
+        }
+      }
+
+      // 确保返回有效的名称，如果为空则返回undefined
+      return name.trim() || undefined;
+    } catch (error) {
+      console.error('generateStageName error:', error);
+      return `关卡 ${stage.Id || 'Unknown'}`;
+    }
+  }
+
+  private getCategoryDisplayName(category: string): string {
+    switch (category.toLowerCase()) {
+      case 'campaign':
+        return '主线';
+      case 'bounty':
+        return '悬赏';
+      case 'commission':
+        return '委托';
+      case 'schooldungeon':
+        return '学园';
+      case 'weekdungeon':
+        return '周常';
+      default:
+        return category;
+    }
+  }
+
   // 增强的关卡查询方法 - 支持智能搜索和字段精简
   async getStagesEnhanced(options: {
     language?: string;
@@ -1127,6 +1283,8 @@ class SchaleDBClient {
     } = options;
 
     const data = await this.fetchData(`${language}/stages.json`);
+    // 加载本地化数据用于关卡名称生成
+    const localizationData = await this.fetchData(`${language}/localization.json`);
     
     // 处理数据格式：如果是对象，转换为数组
     let stages: Stage[];
@@ -1139,91 +1297,270 @@ class SchaleDBClient {
     // 应用筛选条件
     let filteredStages = stages;
 
-    // 按类别筛选 - 使用Category字段
+    // 按类别筛选 - 改进映射和匹配机制
     if (area) {
       filteredStages = filteredStages.filter(s => {
-        if (s.Category) {
-          // 直接匹配类别名称
-          if (s.Category.toLowerCase().includes(area.toLowerCase())) {
-            return true;
-          }
-          // 中文映射
-          const categoryMapping: { [key: string]: string[] } = {
-            '主线': ['Campaign'],
-            '活动': ['Event'],
-            '悬赏': ['Bounty'],
-            '总力战': ['TotalAssault', 'Raid'],
-            '困难': ['Hard']
-          };
-          const mappedCategories = categoryMapping[area];
-          if (mappedCategories) {
-            return mappedCategories.some(cat => s.Category?.toLowerCase().includes(cat.toLowerCase()));
+        if (!s.Category) return false;
+        
+        const category = s.Category.toLowerCase();
+        const searchArea = area.toLowerCase();
+        
+        // 直接匹配
+        if (category.includes(searchArea)) {
+          return true;
+        }
+        
+        // 扩展的映射匹配
+        const categoryMapping: { [key: string]: string[] } = {
+          '主线': ['campaign', 'main', 'story'],
+          '活动': ['event', 'special'],
+          '悬赏': ['bounty', 'commission'],
+          '总力战': ['totalassault', 'raid', 'ta'],
+          '困难': ['hard', 'difficult'],
+          '任务': ['mission', 'quest'],
+          '挑战': ['challenge'],
+          '演习': ['exercise', 'practice']
+        };
+        
+        // 检查中文到英文的映射
+        const mappedCategories = categoryMapping[area];
+        if (mappedCategories) {
+          return mappedCategories.some(cat => category.includes(cat));
+        }
+        
+        // 检查英文到中文的反向映射
+        for (const [chineseArea, englishCategories] of Object.entries(categoryMapping)) {
+          if (englishCategories.some(cat => cat === searchArea)) {
+            return category.includes(chineseArea.toLowerCase()) || 
+                   englishCategories.some(cat => category.includes(cat));
           }
         }
+        
         return false;
       });
     }
 
-    // 按章节筛选 - 使用Stage字段表示关卡编号
+    // 按章节筛选 - 从ID推导章节信息
     if (chapter) {
       filteredStages = filteredStages.filter(s => {
-        if (s.Stage !== undefined) {
-          const chapterNum = parseInt(chapter);
-          if (!isNaN(chapterNum)) {
-            return s.Stage === chapterNum;
+        const chapterStr = chapter.toLowerCase();
+        const chapterNum = parseInt(chapter);
+        
+        // 1. 通过Stage字段匹配（关卡编号）
+        if (s.Stage !== undefined && !isNaN(chapterNum)) {
+          if (s.Stage === chapterNum) {
+            return true;
           }
         }
-        // 也可以通过名称匹配章节
-        if (s.Name && chapter) {
-          return s.Name.includes(chapter);
+        
+        // 2. 从ID推导章节信息（主要逻辑）
+        if (s.Id !== undefined) {
+          const idStr = s.Id.toString();
+          let derivedChapter: number | null = null;
+          
+          // 5位数ID：前2位是章节（如30101 -> 30章）
+          if (idStr.length === 5) {
+            derivedChapter = parseInt(idStr.substring(0, 2));
+          }
+          // 4位数ID：前1位是章节（如1001 -> 1章）
+          else if (idStr.length === 4) {
+            derivedChapter = parseInt(idStr.substring(0, 1));
+          }
+          // 6位数ID：前2位是章节（如301001 -> 30章）
+          else if (idStr.length === 6) {
+            derivedChapter = parseInt(idStr.substring(0, 2));
+          }
+          
+          if (derivedChapter !== null && !isNaN(chapterNum)) {
+            if (derivedChapter === chapterNum) {
+              return true;
+            }
+          }
         }
+        
+        // 3. 通过Chapter字段匹配（如果存在）
+        if (s.Chapter) {
+          const stageChapter = s.Chapter.toLowerCase();
+          if (stageChapter.includes(chapterStr) || chapterStr.includes(stageChapter)) {
+            return true;
+          }
+        }
+        
+        // 4. 通过Name字段匹配章节信息（如果存在）
+        if (s.Name) {
+          const stageName = s.Name.toLowerCase();
+          // 匹配章节数字（如"第1章"、"chapter 1"、"1-1"等）
+          const chapterPatterns = [
+            `第${chapter}章`,
+            `chapter ${chapter}`,
+            `ch${chapter}`,
+            `${chapter}-`,
+            `-${chapter}-`,
+            `第${chapter}话`,
+            `episode ${chapter}`
+          ];
+          
+          if (chapterPatterns.some(pattern => stageName.includes(pattern.toLowerCase()))) {
+            return true;
+          }
+          
+          // 直接包含匹配
+          if (stageName.includes(chapterStr)) {
+            return true;
+          }
+        }
+        
         return false;
       });
     }
 
-    // 按难度筛选 - 使用Level字段或Category字段
+    // 按难度筛选 - 增强映射和匹配逻辑
     if (difficulty) {
       filteredStages = filteredStages.filter(s => {
-        // 通过Level字段筛选
+        const difficultyStr = difficulty.toLowerCase();
+        
+        // 1. 通过Level字段筛选（数字难度）
         if (s.Level !== undefined) {
           const difficultyNum = parseInt(difficulty);
           if (!isNaN(difficultyNum)) {
             return s.Level === difficultyNum;
           }
-        }
-        // 通过Category字段筛选难度
-        if (s.Category) {
-          const difficultyMapping: { [key: string]: string[] } = {
-            '普通': ['Normal', 'Campaign'],
-            '困难': ['Hard', 'Difficult'],
-            '简单': ['Easy', 'Normal'],
-            '极难': ['Extreme', 'Hell']
+          
+          // 数字范围匹配
+          const levelRangeMapping: { [key: string]: number[] } = {
+            '简单': [1, 2, 3, 4, 5],
+            '普通': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            '困难': [16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+            '极难': [26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
+            'easy': [1, 2, 3, 4, 5],
+            'normal': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            'hard': [16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+            'extreme': [26, 27, 28, 29, 30, 31, 32, 33, 34, 35]
           };
-          const mappedDifficulties = difficultyMapping[difficulty];
-          if (mappedDifficulties) {
-            return mappedDifficulties.some(diff => s.Category?.toLowerCase().includes(diff.toLowerCase()));
+          
+          const levelRange = levelRangeMapping[difficultyStr];
+          if (levelRange && levelRange.includes(s.Level)) {
+            return true;
           }
-          // 直接匹配
-          return s.Category.toLowerCase().includes(difficulty.toLowerCase());
         }
+        
+        // 2. 通过Category字段筛选难度
+        if (s.Category) {
+          const category = s.Category.toLowerCase();
+          
+          // 扩展的难度映射
+          const difficultyMapping: { [key: string]: string[] } = {
+            '普通': ['normal', 'campaign', 'story', 'main'],
+            '困难': ['hard', 'difficult', 'challenge'],
+            '简单': ['easy', 'normal', 'tutorial', 'beginner'],
+            '极难': ['extreme', 'hell', 'nightmare', 'insane', 'expert'],
+            'normal': ['normal', 'campaign', 'story', 'main'],
+            'hard': ['hard', 'difficult', 'challenge'],
+            'easy': ['easy', 'normal', 'tutorial', 'beginner'],
+            'extreme': ['extreme', 'hell', 'nightmare', 'insane', 'expert'],
+            'hell': ['extreme', 'hell', 'nightmare', 'insane'],
+            'nightmare': ['extreme', 'hell', 'nightmare', 'insane'],
+            'expert': ['extreme', 'hell', 'nightmare', 'insane', 'expert'],
+            'challenge': ['hard', 'difficult', 'challenge'],
+            'story': ['normal', 'campaign', 'story', 'main'],
+            'main': ['normal', 'campaign', 'story', 'main'],
+            'tutorial': ['easy', 'normal', 'tutorial', 'beginner'],
+            'beginner': ['easy', 'normal', 'tutorial', 'beginner']
+          };
+          
+          const mappedDifficulties = difficultyMapping[difficultyStr];
+          if (mappedDifficulties) {
+            if (mappedDifficulties.some(diff => category.includes(diff))) {
+              return true;
+            }
+          }
+          
+          // 直接匹配
+          if (category.includes(difficultyStr)) {
+            return true;
+          }
+        }
+        
+        // 3. 通过Type字段匹配
+        if (s.Type) {
+          const type = s.Type.toLowerCase();
+          if (type.includes(difficultyStr)) {
+            return true;
+          }
+        }
+        
+        // 4. 通过Name字段匹配（如果关卡名称包含难度信息）
+        if (s.Name) {
+          const name = s.Name.toLowerCase();
+          if (name.includes(difficultyStr)) {
+            return true;
+          }
+        }
+        
         return false;
       });
     }
 
-    // 智能搜索 - 只在名称和章节字段中搜索，避免在数字字段中搜索文本
-    if (search) {
-      filteredStages = this.smartSearch(
-        filteredStages, 
-        search, 
-        ['Name', 'Chapter', 'StageNumber']
-      );
+      // 智能搜索 - 增强关卡搜索逻辑
+      if (search) {
+        // 首先尝试生成关卡名称并添加到搜索字段中
+        const stagesWithGeneratedNames = filteredStages.map((stage) => {
+          try {
+            const generatedName = this.generateStageName(stage, localizationData);
+            
+            // 地形本地化映射
+            const terrainMapping: { [key: string]: string } = {
+              'Street': '街道',
+              'Outdoor': '室外', 
+              'Indoor': '室内'
+            };
+            
+            return {
+              ...stage,
+              GeneratedName: generatedName,
+              TerrainCN: stage.Terrain ? terrainMapping[stage.Terrain] || stage.Terrain : undefined,
+              // 创建组合搜索字段，包含关卡编号的多种格式
+              SearchableStageNumber: this.createSearchableStageNumber(stage)
+            };
+          } catch (error) {
+            return {
+              ...stage,
+              GeneratedName: stage.Name || '',
+              TerrainCN: undefined,
+              SearchableStageNumber: this.createSearchableStageNumber(stage)
+            };
+          }
+        });
+
+        // 使用智能搜索，包含地形中文搜索
+        filteredStages = this.smartSearch(stagesWithGeneratedNames, search, [
+          'Name', 'GeneratedName', 'Chapter', 'StageNumber', 'SearchableStageNumber', 'TerrainCN'
+        ]);
+      } else {
+        // 如果没有搜索条件，也需要生成关卡名称
+        filteredStages = filteredStages.map((stage) => {
+          try {
+            const generatedName = this.generateStageName(stage, localizationData);
+            return {
+              ...stage,
+              GeneratedName: generatedName,
+              SearchableStageNumber: this.createSearchableStageNumber(stage)
+            };
+          } catch (error) {
+            return {
+              ...stage,
+              GeneratedName: stage.Name || '',
+              SearchableStageNumber: this.createSearchableStageNumber(stage)
+            };
+          }
+        });
     }
 
     // 限制结果数量
     const limitedStages = filteredStages.slice(0, limit);
 
     // 返回精简或详细数据
-    return limitedStages.map(stage => this.simplifyStageData(stage, detailed));
+    return limitedStages.map(stage => this.simplifyStageData(stage, detailed, language, localizationData));
   }
 
   // 增强的物品查询方法 - 支持智能搜索和字段精简
@@ -1780,7 +2117,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.7.2",
+        version: "1.7.3",
       },
       {
         capabilities: {
@@ -3067,6 +3404,9 @@ ID: ${detailedInfo.Id}
     console.error("Blue Archive MCP Server running on stdio");
   }
 }
+
+// 导出BlueArchiveMCPServer类供外部使用
+export { BlueArchiveMCPServer };
 
 // 主函数
 async function main() {
