@@ -1178,12 +1178,23 @@ class SchaleDBClient {
           if (!isNaN(difficultyNum)) {
             return s.Difficulty === difficultyNum;
           }
-          // 如果是中文描述，进行映射
+          // 如果是中文或英文描述，进行映射
           const difficultyMapping: { [key: string]: number } = {
+            // 中文映射
+            '普通': 0,
+            '困难': 1,
             '简单': 0,
-            '普通': 1,
-            '困难': 2,
-            '极难': 3
+            '极难': 2,
+            // 英文映射
+            'Normal': 0,
+            'Hard': 1,
+            'Easy': 0,
+            'Extreme': 2,
+            // 小写英文映射
+            'normal': 0,
+            'hard': 1,
+            'easy': 0,
+            'extreme': 2
           };
           return s.Difficulty === difficultyMapping[difficulty];
         }
