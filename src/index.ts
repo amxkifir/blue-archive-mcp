@@ -1412,10 +1412,18 @@ class SchaleDBClient {
       
       // 传统的包含匹配（作为后备方案）
       if (studentName.includes(searchName) || searchName.includes(studentName)) {
-        // 计算包含匹配的相似度
+        // 计算包含匹配的相似度，使用更严格的计算方式
         const longerLength = Math.max(studentName.length, searchName.length);
         const shorterLength = Math.min(studentName.length, searchName.length);
-        similarity = shorterLength / longerLength * 0.8; // 降低传统匹配的权重
+        
+        // 如果长度差异过大，降低相似度
+        const lengthRatio = shorterLength / longerLength;
+        if (lengthRatio < 0.5) {
+          // 长度差异超过50%，大幅降低相似度
+          similarity = lengthRatio * 0.4;
+        } else {
+          similarity = lengthRatio * 0.8; // 降低传统匹配的权重
+        }
         
         // 应用60%相似度阈值筛选
         if (similarity >= 0.6) {
