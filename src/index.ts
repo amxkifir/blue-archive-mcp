@@ -32,6 +32,85 @@ interface Student {
   WeaponType?: string;
   ArmorType?: string;
   BulletType?: string;
+  
+  // 基础信息
+  IsReleased?: boolean;
+  DefaultOrder?: number;
+  PathName?: string;
+  DevName?: string;
+  Icon?: string;
+  SearchTags?: string[];
+  
+  // 角色信息
+  FamilyName?: string;
+  PersonalName?: string;
+  SchoolYear?: string;
+  CharacterAge?: string;
+  Birthday?: string;
+  CharacterSSRNew?: string;
+  ProfileIntroduction?: string;
+  Hobby?: string;
+  CharacterVoice?: string;
+  BirthDay?: string;
+  Illustrator?: string;
+  Designer?: string;
+  CharHeightMetric?: string;
+  CharHeightImperial?: string;
+  
+  // 数值属性
+  AttackPower1?: number;
+  AttackPower100?: number;
+  MaxHP1?: number;
+  MaxHP100?: number;
+  DefensePower1?: number;
+  DefensePower100?: number;
+  HealPower1?: number;
+  HealPower100?: number;
+  DodgePoint?: number;
+  AccuracyPoint?: number;
+  CriticalPoint?: number;
+  CriticalDamageRate?: number;
+  StabilityPoint?: number;
+  AmmoCount?: number;
+  AmmoCost?: number;
+  Range?: number;
+  RegenCost?: number;
+  
+  // 战斗适应性
+  StreetBattleAdaptation?: string;
+  OutdoorBattleAdaptation?: string;
+  IndoorBattleAdaptation?: string;
+  
+  // 装备和武器
+  Equipment?: any[];
+  WeaponImg?: string;
+  Cover?: string;
+  Size?: string;
+  Weapon?: any;
+  Gear?: any;
+  
+  // 技能相关
+  Skills?: any[];
+  SkillExMaterial?: any[];
+  SkillExMaterialAmount?: any[];
+  SkillMaterial?: any[];
+  SkillMaterialAmount?: any[];
+  
+  // 好感度相关
+  FavorStatType?: any[];
+  FavorStatValue?: any[];
+  FavorAlts?: any[];
+  FavorItemTags?: any[];
+  FavorItemUniqueTags?: any[];
+  
+  // 其他
+  Summons?: any[];
+  CollectionBG?: string;
+  MemoryLobby?: any[];
+  MemoryLobbyBGM?: any[];
+  FurnitureInteraction?: any[];
+  IsLimited?: boolean;
+  PotentialMaterial?: number;
 }
 
 interface RaidInfo {
@@ -355,9 +434,59 @@ class SchaleDBClient {
   }
 
   // 数据字段精简
-  private simplifyStudentData(student: Student, detailed: boolean = false): any {
+  public simplifyStudentData(student: Student, detailed: boolean = false): any {
     if (detailed) {
-      return student; // 返回完整数据
+      // 详细模式 - 返回完整数据并添加计算的成长曲线
+      const result: any = { ...student };
+      
+      // 添加数值属性摘要
+      if (student.AttackPower1 && student.AttackPower100) {
+        result.StatsOverview = {
+          AttackPower: {
+            Level1: student.AttackPower1,
+            Level100: student.AttackPower100,
+            Growth: student.AttackPower100 - student.AttackPower1
+          },
+          MaxHP: {
+            Level1: student.MaxHP1 || 0,
+            Level100: student.MaxHP100 || 0,
+            Growth: (student.MaxHP100 || 0) - (student.MaxHP1 || 0)
+          },
+          DefensePower: {
+            Level1: student.DefensePower1 || 0,
+            Level100: student.DefensePower100 || 0,
+            Growth: (student.DefensePower100 || 0) - (student.DefensePower1 || 0)
+          },
+          HealPower: {
+            Level1: student.HealPower1 || 0,
+            Level100: student.HealPower100 || 0,
+            Growth: (student.HealPower100 || 0) - (student.HealPower1 || 0)
+          }
+        };
+        
+        // 计算成长属性曲线（每10级一个点）
+        result.GrowthCurve = this.calculateGrowthCurve(student);
+      }
+      
+      // 格式化技能信息
+      if (student.Skills && Array.isArray(student.Skills)) {
+        result.SkillsFormatted = student.Skills.map((skill: any, index: number) => ({
+          SkillIndex: index + 1,
+          SkillType: this.getSkillType(index),
+          SkillData: skill,
+          Description: skill?.Description || '技能描述暂无',
+          Parameters: skill?.Parameters || []
+        }));
+      }
+      
+      // 格式化战斗适应性
+      result.BattleAdaptations = {
+        Street: student.StreetBattleAdaptation || 'Unknown',
+        Outdoor: student.OutdoorBattleAdaptation || 'Unknown', 
+        Indoor: student.IndoorBattleAdaptation || 'Unknown'
+      };
+      
+      return result;
     }
     
     // 简要模式 - 只返回核心字段
@@ -370,6 +499,70 @@ class SchaleDBClient {
       WeaponType: student.WeaponType,
       ArmorType: student.ArmorType
     };
+  }
+
+  // 计算成长属性曲线
+  private calculateGrowthCurve(student: Student): any {
+    const curve: any = {};
+    
+    // 计算攻击力曲线
+    if (student.AttackPower1 && student.AttackPower100) {
+      curve.AttackPower = this.calculateStatCurve(student.AttackPower1, student.AttackPower100);
+    }
+    
+    // 计算生命值曲线
+    if (student.MaxHP1 && student.MaxHP100) {
+      curve.MaxHP = this.calculateStatCurve(student.MaxHP1, student.MaxHP100);
+    }
+    
+    // 计算防御力曲线
+    if (student.DefensePower1 && student.DefensePower100) {
+      curve.DefensePower = this.calculateStatCurve(student.DefensePower1, student.DefensePower100);
+    }
+    
+    // 计算治疗力曲线
+    if (student.HealPower1 && student.HealPower100) {
+      curve.HealPower = this.calculateStatCurve(student.HealPower1, student.HealPower100);
+    }
+    
+    return curve;
+  }
+
+  // 计算单个属性的成长曲线
+  private calculateStatCurve(level1Value: number, level100Value: number): any[] {
+    const curve = [];
+    const totalGrowth = level100Value - level1Value;
+    
+    // 每10级计算一次数值
+    for (let level = 1; level <= 100; level += 10) {
+      const progress = (level - 1) / 99; // 0到1的进度
+      const currentValue = Math.round(level1Value + (totalGrowth * progress));
+      curve.push({
+        Level: level,
+        Value: currentValue
+      });
+    }
+    
+    // 确保100级的值是准确的
+    if (curve[curve.length - 1].Level !== 100) {
+      curve.push({
+        Level: 100,
+        Value: level100Value
+      });
+    }
+    
+    return curve;
+  }
+
+  // 获取技能类型描述
+  private getSkillType(index: number): string {
+    const skillTypes = [
+      'EX技能', // 0
+      '普通技能', // 1  
+      '被动技能', // 2
+      '子技能' // 3+
+    ];
+    return skillTypes[index] || `技能${index + 1}`;
   }
 
   private simplifyRaidData(raid: RaidInfo, detailed: boolean = false): any {
@@ -1452,25 +1645,14 @@ class BlueArchiveMCPServer {
       };
     }
 
-    const info = `
-学生ID: ${student.Id}
-名称: ${student.Name}
-学校: ${student.School || '未知'}
-社团: ${student.Club || '未知'}
-星级: ${student.StarGrade || '未知'}
-队伍类型: ${student.SquadType || '未知'}
-战术位置: ${student.TacticRole || '未知'}
-职业: ${student.Position || '未知'}
-主武器: ${student.WeaponType || '未知'}
-护甲类型: ${student.ArmorType || '未知'}
-弹药类型: ${student.BulletType || '未知'}
-    `.trim();
-
+    // 使用 simplifyStudentData 方法获取详细信息
+    const detailedInfo = this.client.simplifyStudentData(student, true);
+    
     return {
       content: [
         {
           type: "text",
-          text: info
+          text: JSON.stringify(detailedInfo, null, 2)
         }
       ]
     };
