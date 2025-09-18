@@ -363,22 +363,22 @@ class Logger {
   
   debug(message: string, ...args: any[]): void {
     if (this.shouldLog('debug')) {
-      console.error(`[DEBUG] ${message}`, ...args);
+      // Debug logs are disabled in production
     }
   }
-  
+
   info(message: string, ...args: any[]): void {
     if (this.shouldLog('info')) {
-      console.error(`[INFO] ${message}`, ...args);
+      // Info logs are disabled in production
     }
   }
-  
+
   warn(message: string, ...args: any[]): void {
     if (this.shouldLog('warn')) {
-      console.error(`[WARN] ${message}`, ...args);
+      // Warning logs are disabled in production
     }
   }
-  
+
   error(message: string, ...args: any[]): void {
     if (this.shouldLog('error')) {
       console.error(`[ERROR] ${message}`, ...args);
@@ -716,8 +716,8 @@ class SchaleDBClient {
       });
     }
     
-    // 确保100级的值是准确的
-    if (curve[curve.length - 1].Level !== 100) {
+    // 确保100级的曲线值是准确的
+    if (curve[curve.length - 1]?.Level !== 100) {
       curve.push({
         Level: 100,
         Value: level100Value
@@ -905,7 +905,7 @@ class SchaleDBClient {
       detailed 
     });
     
-    return students.length > 0 ? students[0] : null;
+    return students.length > 0 ? students[0] || null : null;
   }
 
   // 增强的getRaids方法 - 支持数据精简
@@ -1322,31 +1322,32 @@ class SchaleDBClient {
 
   // 计算字符串相似度（Levenshtein距离）
   private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = [];
+    const matrix: number[][] = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(0));
     
+    // 初始化第一行和第一列
     for (let i = 0; i <= str2.length; i++) {
-      matrix[i] = [i];
+      matrix[i]![0] = i;
     }
-    
     for (let j = 0; j <= str1.length; j++) {
-      matrix[0][j] = j;
+      matrix[0]![j] = j;
     }
     
+    // 填充矩阵
     for (let i = 1; i <= str2.length; i++) {
       for (let j = 1; j <= str1.length; j++) {
-        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-          matrix[i][j] = matrix[i - 1][j - 1];
+        if (str2[i - 1] === str1[j - 1]) {
+          matrix[i]![j] = matrix[i - 1]![j - 1]!;
         } else {
-          matrix[i][j] = Math.min(
-            matrix[i - 1][j - 1] + 1,
-            matrix[i][j - 1] + 1,
-            matrix[i - 1][j] + 1
+          matrix[i]![j] = Math.min(
+            matrix[i - 1]![j - 1]! + 1, // 替换
+            matrix[i]![j - 1]! + 1,     // 插入
+            matrix[i - 1]![j]! + 1      // 删除
           );
         }
       }
     }
     
-    return matrix[str2.length][str1.length];
+    return matrix[str2.length]![str1.length]!;
   }
 
   // 查找角色变体 - 重构版本：基于原版角色名称的变体查找
@@ -1370,7 +1371,7 @@ class SchaleDBClient {
     if (variantMatch) {
       // 搜索的是变体名称
       const extractedBaseName = variantMatch[1];
-      baseCharacterName = extractedBaseName;
+      baseCharacterName = extractedBaseName || null;
       
       // 首先添加搜索的变体本身（如果存在）
       for (const student of students) {
@@ -1388,7 +1389,7 @@ class SchaleDBClient {
       // 查找原版角色（如果存在）
       for (const student of students) {
         const studentName = (student.Name || '').toLowerCase().trim();
-        if (studentName === extractedBaseName) {
+        if (studentName === extractedBaseName?.toLowerCase()) {
           if (includeOriginal) {
             variants.push({
               ...student,
@@ -2445,7 +2446,7 @@ ID: ${detailedInfo.Id}
         lobby: "大厅立绘"
       };
       
-      const typeName = avatarTypeNames[avatarType?.toLowerCase() as keyof typeof avatarTypeNames] || avatarType || 'portrait';
+      const typeName = avatarTypeNames[(avatarType?.toLowerCase() || 'portrait') as keyof typeof avatarTypeNames] || avatarType || 'portrait';
       
       // 只支持markdown格式输出
       return {

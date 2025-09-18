@@ -1,20 +1,46 @@
 {
   "name": "blue-archive-mcp",
   "version": "1.7.0",
-  "description": "MCP server for Blue Archive game data queries",
+  "description": "MCP server for Blue Archive game data queries - provides comprehensive access to student information, skills, equipment, and game mechanics",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "blue-archive-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"No tests specified\" && exit 0"
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "blue-archive",
-    "gaming"
+    "gaming",
+    "game-data",
+    "claude",
+    "ai-assistant",
+    "server"
   ],
   "author": "MCP Builder",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/blue-archive-mcp.git"
+  },
+  "homepage": "https://github.com/your-username/blue-archive-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/your-username/blue-archive-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^3.25.76",

@@ -46,7 +46,21 @@ The Blue Archive MCP Server integrates with the SchaleDB API to provide AI assis
 - npm or yarn package manager
 - MCP-compatible client (e.g., Claude Desktop)
 
-### Quick Start
+### Method 1: NPM Installation (Recommended)
+
+Install directly from NPM:
+
+```bash
+npm install -g blue-archive-mcp
+```
+
+Or install locally in your project:
+
+```bash
+npm install blue-archive-mcp
+```
+
+### Method 2: From Source
 
 1. **Clone the repository**
    ```bash
@@ -77,6 +91,24 @@ Add the following configuration to your Claude Desktop config file:
 
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+#### For NPM Installation:
+
+```json
+{
+  "mcpServers": {
+    "blue-archive": {
+      "command": "npx",
+      "args": ["blue-archive-mcp"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+#### For Source Installation:
 
 ```json
 {
