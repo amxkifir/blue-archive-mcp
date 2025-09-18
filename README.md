@@ -99,10 +99,7 @@ Add the following configuration to your Claude Desktop config file:
   "mcpServers": {
     "blue-archive": {
       "command": "npx",
-      "args": ["blue-archive-mcp"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "args": ["blue-archive-mcp"]
     }
   }
 }
@@ -115,10 +112,7 @@ Add the following configuration to your Claude Desktop config file:
   "mcpServers": {
     "blue-archive": {
       "command": "node",
-      "args": ["path/to/blue_archive_mcp/dist/index.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+      "args": ["path/to/blue_archive_mcp/dist/index.js"]
     }
   }
 }
@@ -128,7 +122,6 @@ Add the following configuration to your Claude Desktop config file:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NODE_ENV` | Environment mode | `development` |
 | `LOG_LEVEL` | Logging level | `info` |
 | `CACHE_TIMEOUT` | Cache timeout (ms) | `300000` |
 
