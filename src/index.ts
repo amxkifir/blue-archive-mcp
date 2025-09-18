@@ -592,21 +592,28 @@ class SchaleDBClient {
         else if (normalizedValue.includes(normalizedSearch)) {
           score += 60;
         }
-        // 部分字符匹配 - 低分
+        // 部分字符匹配 - 低分，但需要更严格的条件
         else {
           let partialScore = 0;
+          let matchedChars = 0;
+          
           for (let i = 0; i < normalizedSearch.length; i++) {
             if (normalizedValue.includes(normalizedSearch[i])) {
+              matchedChars++;
               partialScore += 1;
             }
           }
-          if (partialScore > normalizedSearch.length * 0.5) {
-            score += partialScore;
+          
+          // 提高阈值：需要匹配至少80%的字符，且搜索词长度大于1
+          const matchRatio = matchedChars / normalizedSearch.length;
+          if (matchRatio >= 0.8 && normalizedSearch.length > 1) {
+            score += Math.floor(partialScore * matchRatio);
           }
         }
       }
       
-      if (score > 0) {
+      // 只返回分数足够高的结果，避免低相似度的噪音
+      if (score >= 10) {
         results.push({ item, score });
       }
     }
@@ -1442,10 +1449,11 @@ class SchaleDBClient {
       }
     }
     
-    // 按相似度排序
+    // 按相似度排序并过滤掉低相似度结果
     variants.sort((a, b) => b.similarity - a.similarity);
     
-    return variants;
+    // 只返回高相似度的结果（相似度 >= 0.9），避免低相似度的噪音
+    return variants.filter(variant => variant.similarity >= 0.9);
   }
 
   // 辅助方法：转义正则表达式特殊字符
