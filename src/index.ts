@@ -1294,8 +1294,63 @@ class SchaleDBClient {
       stages = Array.isArray(data) ? data : [];
     }
 
-    // 应用筛选条件
+    // 应用筛选条件 - 重新排序：先搜索，再筛选其他条件
     let filteredStages = stages;
+
+    // 首先进行智能搜索 - 这是最重要的筛选条件
+    if (search) {
+      // 首先尝试生成关卡名称并添加到搜索字段中
+      const stagesWithGeneratedNames = filteredStages.map((stage) => {
+        try {
+          const generatedName = this.generateStageName(stage, localizationData);
+          
+          // 地形本地化映射
+          const terrainMapping: { [key: string]: string } = {
+            'Street': '街道',
+            'Outdoor': '室外', 
+            'Indoor': '室内'
+          };
+          
+          return {
+            ...stage,
+            GeneratedName: generatedName,
+            TerrainCN: stage.Terrain ? terrainMapping[stage.Terrain] || stage.Terrain : undefined,
+            // 创建组合搜索字段，包含关卡编号的多种格式
+            SearchableStageNumber: this.createSearchableStageNumber(stage)
+          };
+        } catch (error) {
+          return {
+            ...stage,
+            GeneratedName: stage.Name || '',
+            TerrainCN: undefined,
+            SearchableStageNumber: this.createSearchableStageNumber(stage)
+          };
+        }
+      });
+
+      // 使用智能搜索，包含地形中文搜索
+      filteredStages = this.smartSearch(stagesWithGeneratedNames, search, [
+        'Name', 'GeneratedName', 'Chapter', 'StageNumber', 'SearchableStageNumber', 'TerrainCN'
+      ]);
+    } else {
+      // 如果没有搜索条件，也需要生成关卡名称
+      filteredStages = filteredStages.map((stage) => {
+        try {
+          const generatedName = this.generateStageName(stage, localizationData);
+          return {
+            ...stage,
+            GeneratedName: generatedName,
+            SearchableStageNumber: this.createSearchableStageNumber(stage)
+          };
+        } catch (error) {
+          return {
+            ...stage,
+            GeneratedName: stage.Name || '',
+            SearchableStageNumber: this.createSearchableStageNumber(stage)
+          };
+        }
+      });
+    }
 
     // 按类别筛选 - 改进映射和匹配机制
     if (area) {
@@ -1414,7 +1469,7 @@ class SchaleDBClient {
       });
     }
 
-    // 按难度筛选 - 增强映射和匹配逻辑
+    // 按难度筛选 - 增强映射和匹配逻辑（移到最后，避免过早排除搜索结果）
     if (difficulty) {
       filteredStages = filteredStages.filter(s => {
         const difficultyStr = difficulty.toLowerCase();
@@ -1499,61 +1554,6 @@ class SchaleDBClient {
         
         return false;
       });
-    }
-
-      // 智能搜索 - 增强关卡搜索逻辑
-      if (search) {
-        // 首先尝试生成关卡名称并添加到搜索字段中
-        const stagesWithGeneratedNames = filteredStages.map((stage) => {
-          try {
-            const generatedName = this.generateStageName(stage, localizationData);
-            
-            // 地形本地化映射
-            const terrainMapping: { [key: string]: string } = {
-              'Street': '街道',
-              'Outdoor': '室外', 
-              'Indoor': '室内'
-            };
-            
-            return {
-              ...stage,
-              GeneratedName: generatedName,
-              TerrainCN: stage.Terrain ? terrainMapping[stage.Terrain] || stage.Terrain : undefined,
-              // 创建组合搜索字段，包含关卡编号的多种格式
-              SearchableStageNumber: this.createSearchableStageNumber(stage)
-            };
-          } catch (error) {
-            return {
-              ...stage,
-              GeneratedName: stage.Name || '',
-              TerrainCN: undefined,
-              SearchableStageNumber: this.createSearchableStageNumber(stage)
-            };
-          }
-        });
-
-        // 使用智能搜索，包含地形中文搜索
-        filteredStages = this.smartSearch(stagesWithGeneratedNames, search, [
-          'Name', 'GeneratedName', 'Chapter', 'StageNumber', 'SearchableStageNumber', 'TerrainCN'
-        ]);
-      } else {
-        // 如果没有搜索条件，也需要生成关卡名称
-        filteredStages = filteredStages.map((stage) => {
-          try {
-            const generatedName = this.generateStageName(stage, localizationData);
-            return {
-              ...stage,
-              GeneratedName: generatedName,
-              SearchableStageNumber: this.createSearchableStageNumber(stage)
-            };
-          } catch (error) {
-            return {
-              ...stage,
-              GeneratedName: stage.Name || '',
-              SearchableStageNumber: this.createSearchableStageNumber(stage)
-            };
-          }
-        });
     }
 
     // 限制结果数量
@@ -2117,7 +2117,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.7.3",
+        version: "1.7.4",
       },
       {
         capabilities: {
