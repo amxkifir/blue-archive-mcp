@@ -1329,7 +1329,7 @@ class SchaleDBClient {
     return matrix[str2.length][str1.length];
   }
 
-  // 查找角色变体
+  // 查找角色变体 - 重构版本：基于原版角色名称的变体查找
   async findStudentVariants(name: string, language: string = 'cn', includeOriginal: boolean = true): Promise<any[]> {
     const students = await this.getStudents({ language, limit: 1000 });
     
@@ -1340,124 +1340,112 @@ class SchaleDBClient {
     const variants: any[] = [];
     const searchName = name.toLowerCase().trim();
     
-    for (const student of students) {
-      const studentName = (student.Name || '').toLowerCase().trim();
-      let similarity = 0;
-      let isVariant = false;
+    // 第一步：检查搜索的是否为变体名称（包含括号）
+    let baseCharacterName: string | null = null;
+    let exactMatch: any = null;
+    
+    const variantPattern = /^(.+?)[（(](.+?)[）)]$/;
+    const variantMatch = searchName.match(variantPattern);
+    
+    if (variantMatch) {
+      // 搜索的是变体名称
+      const extractedBaseName = variantMatch[1];
+      baseCharacterName = extractedBaseName;
       
-      // 完全匹配
-      if (studentName === searchName) {
-        similarity = 1.0;
-        if (includeOriginal) {
+      // 首先添加搜索的变体本身（如果存在）
+      for (const student of students) {
+        const studentName = (student.Name || '').toLowerCase().trim();
+        if (studentName === searchName) {
           variants.push({
             ...student,
-            similarity: similarity,
-            variantType: 'original'
+            similarity: 1.0,
+            variantType: 'searched_variant'
           });
+          break;
         }
-        continue;
       }
       
-      // 优化的变体检测逻辑：基于角色名称前缀匹配
-      // 检查是否为变体形式：A（新春）、A（泳装）等
-      const variantPattern = new RegExp(`^${this.escapeRegExp(searchName)}[（(](.+?)[）)]$`);
-      const reverseVariantPattern = new RegExp(`^(.+?)[（(](.+?)[）)]$`);
-      
-      // 检查当前学生是否为搜索角色的变体
-      const variantMatch = studentName.match(variantPattern);
-      if (variantMatch) {
-        similarity = 0.95; // 高相似度，因为是明确的变体
-        isVariant = true;
-        variants.push({
-          ...student,
-          similarity: similarity,
-          variantType: 'variant',
-          variantSuffix: variantMatch[1]
-        });
-        continue;
+      // 查找原版角色（如果存在）
+      for (const student of students) {
+        const studentName = (student.Name || '').toLowerCase().trim();
+        if (studentName === extractedBaseName) {
+          if (includeOriginal) {
+            variants.push({
+              ...student,
+              similarity: 0.98,
+              variantType: 'base_character'
+            });
+          }
+          break;
+        }
       }
+    } else {
+      // 第二步：搜索的不是变体名称，尝试完全匹配查找基准角色
+      for (const student of students) {
+        const studentName = (student.Name || '').toLowerCase().trim();
+        
+        // 完全匹配 - 这是我们的基准角色
+        if (studentName === searchName) {
+          exactMatch = student;
+          baseCharacterName = searchName;
+          if (includeOriginal) {
+            variants.push({
+              ...student,
+              similarity: 1.0,
+              variantType: 'exact_match'
+            });
+          }
+          break;
+        }
+      }
+    }
+    
+    // 第三步：基于确定的原版角色名称，查找所有变体
+    if (baseCharacterName) {
+      const variantPattern = new RegExp(`^${this.escapeRegExp(baseCharacterName)}[（(](.+?)[）)]$`);
       
-      // 检查搜索名称是否为某个角色的变体，而当前学生是原版
-      const searchVariantMatch = searchName.match(reverseVariantPattern);
-      if (searchVariantMatch) {
-        const baseName = searchVariantMatch[1];
-        if (studentName === baseName) {
-          similarity = 0.95; // 高相似度，因为是原版角色
-          isVariant = true;
-          variants.push({
-            ...student,
-            similarity: similarity,
-            variantType: 'base',
-            baseName: baseName
-          });
+      for (const student of students) {
+        const studentName = (student.Name || '').toLowerCase().trim();
+        
+        // 跳过已经添加的角色
+        if (variants.some(v => v.Name === student.Name)) {
           continue;
         }
         
-        // 检查是否为同一角色的其他变体
-        const sameBasePattern = new RegExp(`^${this.escapeRegExp(baseName)}[（(](.+?)[）)]$`);
-        const sameBaseMatch = studentName.match(sameBasePattern);
-        if (sameBaseMatch) {
-          similarity = 0.90; // 稍低的相似度，因为是同角色的不同变体
-          isVariant = true;
+        // 查找变体：原版角色名称 + (变体后缀)
+        const match = studentName.match(variantPattern);
+        if (match) {
           variants.push({
             ...student,
-            similarity: similarity,
-            variantType: 'sibling_variant',
-            baseName: baseName,
-            variantSuffix: sameBaseMatch[1]
+            similarity: 0.95,
+            variantType: 'variant',
+            baseName: baseCharacterName,
+            variantSuffix: match[1]
           });
-          continue;
         }
       }
-      
-      // 传统的包含匹配（作为后备方案）
-      if (studentName.includes(searchName) || searchName.includes(studentName)) {
-        // 计算包含匹配的相似度，使用更严格的计算方式
-        const longerLength = Math.max(studentName.length, searchName.length);
-        const shorterLength = Math.min(studentName.length, searchName.length);
+    }
+    
+    // 第四步：如果没有找到任何匹配，进行严格的完全匹配搜索
+    if (variants.length === 0) {
+      for (const student of students) {
+        const studentName = (student.Name || '').toLowerCase().trim();
         
-        // 如果长度差异过大，降低相似度
-        const lengthRatio = shorterLength / longerLength;
-        if (lengthRatio < 0.5) {
-          // 长度差异超过50%，大幅降低相似度
-          similarity = lengthRatio * 0.4;
-        } else {
-          similarity = lengthRatio * 0.8; // 降低传统匹配的权重
-        }
-        
-        // 应用60%相似度阈值筛选
-        if (similarity >= 0.6) {
+        // 只进行完全匹配，不进行任何模糊匹配
+        if (studentName === searchName) {
           variants.push({
             ...student,
-            similarity: similarity,
-            variantType: 'partial_match'
+            similarity: 1.0,
+            variantType: 'exact_match'
           });
         }
-        continue;
-      }
-      
-      // 使用编辑距离进行模糊匹配（最后的后备方案）
-      const distance = this.levenshteinDistance(studentName, searchName);
-      const maxLength = Math.max(studentName.length, searchName.length);
-      similarity = 1 - (distance / maxLength);
-      
-      // 相似度阈值为0.6
-      if (similarity >= 0.6) {
-        variants.push({
-          ...student,
-          similarity: similarity,
-          variantType: 'fuzzy_match'
-        });
       }
     }
     
     // 按相似度排序
     variants.sort((a, b) => b.similarity - a.similarity);
     
-    // 统一过滤低相似度结果（60%以下）
-    const filteredVariants = variants.filter(variant => variant.similarity >= 0.6);
-    
-    return filteredVariants;
+    return variants;
   }
 
   // 辅助方法：转义正则表达式特殊字符
