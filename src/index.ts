@@ -1654,11 +1654,11 @@ class BlueArchiveMCPServer {
             description: "获取学生头像图片，支持多种头像类型。通过学生ID或名称查询，返回Markdown格式的图片链接。支持的头像类型：portrait（全身立绘，默认）、collection（收藏立绘）、icon（头像图标）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）拥有独立的角色ID，需要先通过find_student_variants查找变体。",
             inputSchema: zodToJsonSchema(GetStudentAvatarSchema) as ToolInput,
           },
-          {
-            name: "get_student_voice",
-            description: "获取学生语音信息和音频链接。支持通过学生ID或名称查询不同类型的语音：normal（日常语音）、battle（战斗语音）、lobby（大厅语音）、event（活动语音）、all（全部语音，默认）。支持text（纯文本）和markdown（包含音频播放链接）两种输出格式。Markdown格式可在支持的环境中直接播放音频。",
-            inputSchema: zodToJsonSchema(GetStudentVoiceSchema) as ToolInput,
-          },
+          // {
+          //   name: "get_student_voice",
+          //   description: "获取学生语音信息和音频链接。支持通过学生ID或名称查询不同类型的语音：normal（日常语音）、battle（战斗语音）、lobby（大厅语音）、event（活动语音）、all（全部语音，默认）。支持text（纯文本）和markdown（包含音频播放链接）两种输出格式。Markdown格式可在支持的环境中直接播放音频。",
+          //   inputSchema: zodToJsonSchema(GetStudentVoiceSchema) as ToolInput,
+          // },
           {
             name: "find_student_variants",
             description: "查找角色的所有变体版本（如泳装、新春、兔女郎等不同服装）。基于名称相似度智能匹配，帮助快速发现一个角色的所有变体形态。支持中文、日文、英文名称搜索，如输入'アル'可找到'アル'、'アル（正月）'等所有变体。返回变体列表及相似度评分。",
@@ -1669,11 +1669,11 @@ class BlueArchiveMCPServer {
             description: "批量获取多个学生的头像图片，提高查询效率。通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。支持所有头像类型（portrait、collection、icon、lobby），返回Markdown格式的图片展示。适用于制作角色对比、团队展示等场景。",
             inputSchema: zodToJsonSchema(GetMultipleStudentAvatarsSchema) as ToolInput,
           },
-          {
-            name: "get_multiple_student_voices",
-            description: "批量获取多个学生的语音信息，提高查询效率。通过学生ID数组一次性获取多个角色的语音数据，避免多次单独调用。支持所有语音类型和text、markdown两种输出格式。适用于制作语音合集、角色对比等场景。",
-            inputSchema: zodToJsonSchema(GetMultipleStudentVoicesSchema) as ToolInput,
-          }
+          // {
+          //   name: "get_multiple_student_voices",
+          //   description: "批量获取多个学生的语音信息，提高查询效率。通过学生ID数组一次性获取多个角色的语音数据，避免多次单独调用。支持所有语音类型和text、markdown两种输出格式。适用于制作语音合集、角色对比等场景。",
+          //   inputSchema: zodToJsonSchema(GetMultipleStudentVoicesSchema) as ToolInput,
+          // }
         ];
 
       return { tools };
@@ -1729,10 +1729,10 @@ class BlueArchiveMCPServer {
             const validatedArgs = GetStudentAvatarSchema.parse(args);
             return await this.handleGetStudentAvatar(validatedArgs);
           }
-          case 'get_student_voice': {
-            const validatedArgs = GetStudentVoiceSchema.parse(args);
-            return await this.handleGetStudentVoice(validatedArgs);
-          }
+          // case 'get_student_voice': {
+          //   const validatedArgs = GetStudentVoiceSchema.parse(args);
+          //   return await this.handleGetStudentVoice(validatedArgs);
+          // }
           case 'find_student_variants': {
             const validatedArgs = FindStudentVariantsSchema.parse(args);
             return await this.handleFindStudentVariants(validatedArgs);
@@ -1741,10 +1741,10 @@ class BlueArchiveMCPServer {
             const validatedArgs = GetMultipleStudentAvatarsSchema.parse(args);
             return await this.handleGetMultipleStudentAvatars(validatedArgs);
           }
-          case 'get_multiple_student_voices': {
-            const validatedArgs = GetMultipleStudentVoicesSchema.parse(args);
-            return await this.handleGetMultipleStudentVoices(validatedArgs);
-          }
+          // case 'get_multiple_student_voices': {
+          //   const validatedArgs = GetMultipleStudentVoicesSchema.parse(args);
+          //   return await this.handleGetMultipleStudentVoices(validatedArgs);
+          // }
           default:
             throw new McpError(
               ErrorCode.MethodNotFound,
