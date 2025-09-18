@@ -2590,7 +2590,8 @@ ID: ${detailedInfo.Id}
                   }
                   result += '\n';
                 } else {
-                  result += `- **${voiceKey}**: [复杂数据对象]\n`;
+                  // 显示调试信息而不是"[复杂数据对象]"
+                  result += `- **${voiceKey}**: [调试] 类型:${typeof voiceValue}, 字段:${Object.keys(voiceValue).join(',')}\n`;
                 }
               } else {
                 result += `- **${voiceKey}**: ${voiceValue}\n`;
@@ -2624,20 +2625,55 @@ ID: ${detailedInfo.Id}
       
       voiceTypes.forEach(type => {
         const voices = studentVoices[type];
-        if (voices && typeof voices === 'object') {
+        if (Array.isArray(voices) && voices.length > 0) {
+          result += `${type.toUpperCase()} 语音 (${voices.length}条)：\n`;
+          voices.forEach((voice, index) => {
+            if (voice && typeof voice === 'object') {
+              const group = voice.Group || `${type}_${index + 1}`;
+              const audioClip = voice.AudioClip;
+              const transcription = voice.Transcription || '';
+              
+              if (audioClip) {
+                const audioUrl = `https://schaledb.com/audio/${audioClip}`;
+                result += `  - ${group}: 🎵 ${audioUrl}`;
+                if (transcription) {
+                  result += ` | 📝 ${transcription}`;
+                }
+                result += '\n';
+              } else if (transcription) {
+                result += `  - ${group}: 📝 ${transcription}\n`;
+              } else {
+                // 显示调试信息而不是"[复杂数据对象]"
+                result += `  - ${group}: [调试] 类型:${typeof voice}, 字段:${Object.keys(voice).join(',')}\n`;
+              }
+            } else {
+              result += `  - ${type}_${index + 1}: ${voice}\n`;
+            }
+          });
+          result += '\n';
+        } else if (voices && typeof voices === 'object') {
           result += `${type.toUpperCase()} 语音：\n`;
           Object.keys(voices).forEach(voiceKey => {
             const voiceValue = voices[voiceKey];
             // 格式化语音数据显示
             if (typeof voiceValue === 'object' && voiceValue !== null) {
               // 如果是对象，尝试提取有用信息
-              if (voiceValue.text || voiceValue.content) {
+              if (voiceValue.AudioClip) {
+                const audioUrl = `https://schaledb.com/audio/${voiceValue.AudioClip}`;
+                result += `  - ${voiceKey}: 🎵 ${audioUrl}`;
+                if (voiceValue.Transcription) {
+                  result += ` | 📝 ${voiceValue.Transcription}`;
+                }
+                result += '\n';
+              } else if (voiceValue.Transcription) {
+                result += `  - ${voiceKey}: 📝 ${voiceValue.Transcription}\n`;
+              } else if (voiceValue.text || voiceValue.content) {
                 result += `  - ${voiceKey}: ${voiceValue.text || voiceValue.content}\n`;
               } else if (voiceValue.url || voiceValue.file) {
                 result += `  - ${voiceKey}: ${voiceValue.url || voiceValue.file}\n`;
               } else {
-                // 如果是复杂对象，简化显示
-                result += `  - ${voiceKey}: [复杂数据对象]\n`;
+                // 显示调试信息而不是"[复杂数据对象]"
+                result += `  - ${voiceKey}: [调试] 类型:${typeof voiceValue}, 字段:${Object.keys(voiceValue).join(',')}\n`;
               }
             } else {
               // 如果是简单值，直接显示
@@ -2645,6 +2681,8 @@ ID: ${detailedInfo.Id}
             }
           });
           result += '\n';
+        } else {
+          result += `${type.toUpperCase()} 语音 (0条)：\n  暂无语音数据\n\n`;
         }
       });
       
