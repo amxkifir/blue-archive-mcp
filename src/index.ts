@@ -2515,26 +2515,63 @@ ID: ${detailedInfo.Id}
         
         voiceTypes.forEach(type => {
           const voices = studentVoices[type];
-          if (voices && typeof voices === 'object') {
+          if (Array.isArray(voices) && voices.length > 0) {
+            result += `## ${type.toUpperCase()} 语音\n\n`;
+            
+            voices.forEach((voice, index) => {
+              if (voice && typeof voice === 'object') {
+                const group = voice.Group || `${type}_${index + 1}`;
+                const audioClip = voice.AudioClip;
+                const transcription = voice.Transcription || '';
+                
+                if (audioClip) {
+                  // 构建完整的音频URL
+                  const audioUrl = `https://schaledb.com/audio/${audioClip}`;
+                  
+                  result += `### ${group}\n\n`;
+                  
+                  // 添加多种音频链接格式以提高兼容性
+                  result += `**🎵 音频播放选项:**\n`;
+                  result += `- [直接播放链接](${audioUrl})\n`;
+                  result += `- <audio controls preload="none"><source src="${audioUrl}" type="audio/mpeg">您的浏览器不支持音频播放。</audio>\n`;
+                  
+                  // 如果有转录文本，显示出来
+                  if (transcription) {
+                    result += `\n**📝 转录文本:** ${transcription}\n`;
+                  }
+                  
+                  result += '\n---\n\n';
+                } else {
+                  // 如果没有AudioClip，显示可用信息
+                  result += `### ${group}\n`;
+                  if (transcription) {
+                    result += `**📝 文本:** ${transcription}\n`;
+                  } else {
+                    result += `*暂无音频数据*\n`;
+                  }
+                  result += '\n';
+                }
+              }
+            });
+          } else if (voices && typeof voices === 'object') {
+            // 处理非数组格式的语音数据（向后兼容）
             result += `## ${type.toUpperCase()} 语音\n\n`;
             Object.keys(voices).forEach(voiceKey => {
               const voiceValue = voices[voiceKey];
-              // 格式化语音数据显示
               if (typeof voiceValue === 'object' && voiceValue !== null) {
-                // 如果是对象，尝试提取有用信息
-                if (voiceValue.text || voiceValue.content) {
-                  result += `- **${voiceKey}**: ${voiceValue.text || voiceValue.content}\n`;
-                } else if (voiceValue.url || voiceValue.file) {
-                  const audioUrl = voiceValue.url || voiceValue.file;
-                  result += `- **${voiceKey}**: [🎵 播放音频](${audioUrl})\n`;
-                  // 如果支持HTML5音频标签，也可以添加
-                  result += `  <audio controls><source src="${audioUrl}" type="audio/mpeg">您的浏览器不支持音频播放。</audio>\n`;
+                if (voiceValue.AudioClip) {
+                  const audioUrl = `https://schaledb.com/audio/${voiceValue.AudioClip}`;
+                  result += `### ${voiceKey}\n`;
+                  result += `- [🎵 播放音频](${audioUrl})\n`;
+                  result += `- <audio controls preload="none"><source src="${audioUrl}" type="audio/mpeg">您的浏览器不支持音频播放。</audio>\n`;
+                  if (voiceValue.Transcription) {
+                    result += `- **转录:** ${voiceValue.Transcription}\n`;
+                  }
+                  result += '\n';
                 } else {
-                  // 如果是复杂对象，简化显示
                   result += `- **${voiceKey}**: [复杂数据对象]\n`;
                 }
               } else {
-                // 如果是简单值，直接显示
                 result += `- **${voiceKey}**: ${voiceValue}\n`;
               }
             });
@@ -2542,7 +2579,11 @@ ID: ${detailedInfo.Id}
           }
         });
         
-        result += '\n**提示**: 在支持Markdown的环境中，音频链接应该能够点击播放。如果无法播放，请检查网络连接或音频链接。';
+        result += '\n**💡 使用提示:**\n';
+        result += '- 点击"直接播放链接"在新窗口中播放音频\n';
+        result += '- 使用HTML5音频控件进行内嵌播放\n';
+        result += '- 如果无法播放，请检查网络连接或尝试其他播放方式\n';
+        result += '- 音频文件来源：SchaleDB官方数据库';
         
         return {
           content: [
