@@ -821,6 +821,50 @@ class SchaleDBClient {
     };
   }
 
+  // 中英文映射表
+  private readonly schoolMapping: { [key: string]: string } = {
+    '三一': 'Trinity',
+    '三一综合学园': 'Trinity',
+    '千年': 'Millennium',
+    '千年科技学院': 'Millennium',
+    '格黑娜': 'Gehenna',
+    '格黑娜学园': 'Gehenna',
+    '阿拜多斯': 'Abydos',
+    '阿拜多斯高等学校': 'Abydos',
+    '山海经': 'Shanhaijing',
+    '山海经高级中学': 'Shanhaijing',
+    '百鬼夜行': 'Hyakkiyako',
+    '百鬼夜行联合学院': 'Hyakkiyako',
+    '红冬': 'RedWinter',
+    '红冬联邦学园': 'RedWinter',
+    '特殊任务部': 'SRT',
+    'srt': 'SRT',
+    '阿里乌斯': 'Arius',
+    '阿里乌斯小队': 'Arius',
+    '常盘台': 'Tokiwadai',
+    '瓦尔基里': 'Valkyrie',
+    '高地人': 'Highlander',
+    '狂猎': 'WildHunt',
+    '其他': 'ETC',
+    '佐久川': 'Sakugawa'
+  };
+
+  private readonly roleMapping: { [key: string]: string } = {
+    '治疗': 'Healer',
+    '治疗师': 'Healer',
+    '奶妈': 'Healer',
+    '坦克': 'Tanker',
+    '肉盾': 'Tanker',
+    '前排': 'Tanker',
+    '输出': 'DamageDealer',
+    '伤害': 'DamageDealer',
+    'dps': 'DamageDealer',
+    '辅助': 'Supporter',
+    '支援': 'Supporter',
+    '载具': 'Vehicle',
+    '机甲': 'Vehicle'
+  };
+
   // 统一的学生查询方法 - 支持所有查询选项
   async getStudents(options: {
     language?: string;
@@ -859,11 +903,25 @@ class SchaleDBClient {
     // 应用筛选条件
     let filteredStudents = students;
 
-    // 按学校过滤
+    // 按学校过滤 - 支持中英文
     if (school) {
-      filteredStudents = filteredStudents.filter((s: Student) => 
-        s.School && s.School.toLowerCase().includes(school.toLowerCase())
-      );
+      const normalizedSchool = school.toLowerCase();
+      // 检查是否为中文学校名，如果是则转换为英文
+      const englishSchool = this.schoolMapping[school] || this.schoolMapping[normalizedSchool];
+      
+      filteredStudents = filteredStudents.filter((s: Student) => {
+        if (!s.School) return false;
+        
+        const studentSchool = s.School.toLowerCase();
+        
+        // 直接匹配原始输入
+        if (studentSchool.includes(normalizedSchool)) return true;
+        
+        // 如果有英文映射，也尝试匹配英文名
+        if (englishSchool && studentSchool.includes(englishSchool.toLowerCase())) return true;
+        
+        return false;
+      });
     }
 
     // 按星级过滤
@@ -871,11 +929,25 @@ class SchaleDBClient {
       filteredStudents = filteredStudents.filter((s: Student) => s.StarGrade === starGrade);
     }
 
-    // 按职业过滤
+    // 按职业过滤 - 支持中英文
     if (role) {
-      filteredStudents = filteredStudents.filter((s: Student) => 
-        s.TacticRole && s.TacticRole.toLowerCase().includes(role.toLowerCase())
-      );
+      const normalizedRole = role.toLowerCase();
+      // 检查是否为中文职业名，如果是则转换为英文
+      const englishRole = this.roleMapping[role] || this.roleMapping[normalizedRole];
+      
+      filteredStudents = filteredStudents.filter((s: Student) => {
+        if (!s.TacticRole) return false;
+        
+        const studentRole = s.TacticRole.toLowerCase();
+        
+        // 直接匹配原始输入
+        if (studentRole.includes(normalizedRole)) return true;
+        
+        // 如果有英文映射，也尝试匹配英文名
+        if (englishRole && studentRole.includes(englishRole.toLowerCase())) return true;
+        
+        return false;
+      });
     }
 
     // 智能搜索
