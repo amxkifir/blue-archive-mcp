@@ -627,57 +627,33 @@ class SchaleDBClient {
   // 数据字段精简
   public simplifyStudentData(student: Student, detailed: boolean = false): any {
     if (detailed) {
-      // 详细模式 - 返回完整数据并添加计算的成长曲线
-      const result: any = { ...student };
-      
-      // 添加数值属性摘要
-      if (student.AttackPower1 && student.AttackPower100) {
-        result.StatsOverview = {
-          AttackPower: {
-            Level1: student.AttackPower1,
-            Level100: student.AttackPower100,
-            Growth: student.AttackPower100 - student.AttackPower1
-          },
-          MaxHP: {
-            Level1: student.MaxHP1 || 0,
-            Level100: student.MaxHP100 || 0,
-            Growth: (student.MaxHP100 || 0) - (student.MaxHP1 || 0)
-          },
-          DefensePower: {
-            Level1: student.DefensePower1 || 0,
-            Level100: student.DefensePower100 || 0,
-            Growth: (student.DefensePower100 || 0) - (student.DefensePower1 || 0)
-          },
-          HealPower: {
-            Level1: student.HealPower1 || 0,
-            Level100: student.HealPower100 || 0,
-            Growth: (student.HealPower100 || 0) - (student.HealPower1 || 0)
-          }
-        };
-        
-        // 计算成长属性曲线（每10级一个点）
-        result.GrowthCurve = this.calculateGrowthCurve(student);
-      }
-      
-      // 格式化技能信息
-      if (student.Skills && Array.isArray(student.Skills)) {
-        result.SkillsFormatted = student.Skills.map((skill: any, index: number) => ({
-          SkillIndex: index + 1,
-          SkillType: this.getSkillType(index),
-          SkillData: skill,
-          Description: skill?.Description || '技能描述暂无',
-          Parameters: skill?.Parameters || []
-        }));
-      }
-      
-      // 格式化战斗适应性
-      result.BattleAdaptations = {
-        Street: student.StreetBattleAdaptation || 'Unknown',
-        Outdoor: student.OutdoorBattleAdaptation || 'Unknown', 
-        Indoor: student.IndoorBattleAdaptation || 'Unknown'
+      // 详细模式 - 返回核心数据，移除冗余信息
+      return {
+        Id: student.Id,
+        Name: student.Name,
+        School: student.School,
+        Club: student.Club,
+        StarGrade: student.StarGrade,
+        SquadType: student.SquadType,
+        TacticRole: student.TacticRole,
+        Position: student.Position,
+        WeaponType: student.WeaponType,
+        ArmorType: student.ArmorType,
+        BulletType: student.BulletType,
+        AttackPower1: student.AttackPower1,
+        AttackPower100: student.AttackPower100,
+        MaxHP1: student.MaxHP1,
+        MaxHP100: student.MaxHP100,
+        DefensePower1: student.DefensePower1,
+        DefensePower100: student.DefensePower100,
+        HealPower1: student.HealPower1,
+        HealPower100: student.HealPower100,
+        BattleAdaptation: {
+          Street: student.StreetBattleAdaptation,
+          Outdoor: student.OutdoorBattleAdaptation,
+          Indoor: student.IndoorBattleAdaptation
+        }
       };
-      
-      return result;
     }
     
     // 简要模式 - 只返回核心字段
@@ -757,36 +733,26 @@ class SchaleDBClient {
   }
 
   private simplifyRaidData(raid: RaidInfo, detailed: boolean = false): any {
-    if (detailed) {
-      return raid;
-    }
-    
     return {
       Id: raid.Id,
       Name: raid.Name,
       Level: raid.Level,
-      Terrain: raid.Terrain
+      Terrain: raid.Terrain,
+      BaseIntelligence: raid.BaseIntelligence
     };
   }
 
   private simplifyEquipmentData(equipment: Equipment, detailed: boolean = false): any {
-    if (detailed) {
-      return equipment;
-    }
-    
     return {
       Id: equipment.Id,
       Name: equipment.Name,
       Tier: equipment.Tier,
-      Category: equipment.Category
+      Category: equipment.Category,
+      Description: equipment.Description
     };
   }
 
   private simplifyStageData(stage: Stage, detailed: boolean = false): any {
-    if (detailed) {
-      return stage;
-    }
-    
     return {
       Id: stage.Id,
       Name: stage.Name,
@@ -794,53 +760,50 @@ class SchaleDBClient {
       Chapter: stage.Chapter,
       Difficulty: stage.Difficulty,
       APCost: stage.APCost,
-      RecommendLevel: stage.RecommendLevel
+      RecommendLevel: stage.RecommendLevel,
+      Terrain: stage.Terrain
     };
   }
 
   private simplifyItemData(item: Item, detailed: boolean = false): any {
-    if (detailed) {
-      return item;
-    }
-    
     return {
       Id: item.Id,
       Name: item.Name,
       Category: item.Category,
       Rarity: item.Rarity,
       Tags: item.Tags,
-      Icon: item.Icon
+      Icon: item.Icon,
+      Description: item.Description
     };
   }
 
   private simplifyFurnitureData(furniture: Furniture, detailed: boolean = false): any {
-    if (detailed) {
-      return furniture;
-    }
-    
     return {
       Id: furniture.Id,
       Name: furniture.Name,
       Category: furniture.Category,
       Type: furniture.Type,
       Rarity: furniture.Rarity,
-      ComfortBonus: furniture.ComfortBonus
+      ComfortBonus: furniture.ComfortBonus,
+      Size: furniture.Size
     };
   }
 
   private simplifyEnemyData(enemy: Enemy, detailed: boolean = false): any {
-    if (!detailed) {
-      return {
-        Id: enemy.Id,
-        Name: enemy.Name,
-        Type: enemy.Type,
-        Rank: enemy.Rank,
-        ArmorType: enemy.ArmorType,
-        BulletType: enemy.BulletType,
-        Level: enemy.Level
-      };
-    }
-    return enemy;
+    return {
+      Id: enemy.Id,
+      Name: enemy.Name,
+      Type: enemy.Type,
+      Rank: enemy.Rank,
+      ArmorType: enemy.ArmorType,
+      BulletType: enemy.BulletType,
+      Level: enemy.Level,
+      HP: enemy.HP,
+      Attack: enemy.Attack,
+      Defense: enemy.Defense,
+      WeaponType: enemy.WeaponType,
+      Terrain: enemy.Terrain
+    };
   }
 
   // 统一的学生查询方法 - 支持所有查询选项
@@ -1928,7 +1891,15 @@ class BlueArchiveMCPServer {
       content: [
         {
           type: "text",
-          text: JSON.stringify(detailedInfo, null, 2)
+          text: `学生详细信息：
+ID: ${detailedInfo.Id}
+名称: ${detailedInfo.Name}
+学校: ${detailedInfo.School || '未知'}
+社团: ${detailedInfo.Club || '未知'}
+星级: ${detailedInfo.StarGrade || '未知'}
+职业: ${detailedInfo.TacticRole || '未知'}
+武器: ${detailedInfo.WeaponType || '未知'}
+护甲: ${detailedInfo.ArmorType || '未知'}`
         }
       ]
     };
@@ -2517,8 +2488,8 @@ class BlueArchiveMCPServer {
                   // 如果支持HTML5音频标签，也可以添加
                   result += `  <audio controls><source src="${audioUrl}" type="audio/mpeg">您的浏览器不支持音频播放。</audio>\n`;
                 } else {
-                  // 如果是复杂对象，显示JSON格式
-                  result += `- **${voiceKey}**: \`\`\`json\n${JSON.stringify(voiceValue, null, 2)}\n\`\`\`\n`;
+                  // 如果是复杂对象，简化显示
+                  result += `- **${voiceKey}**: [复杂数据对象]\n`;
                 }
               } else {
                 // 如果是简单值，直接显示
@@ -2558,8 +2529,8 @@ class BlueArchiveMCPServer {
               } else if (voiceValue.url || voiceValue.file) {
                 result += `  - ${voiceKey}: ${voiceValue.url || voiceValue.file}\n`;
               } else {
-                // 如果是复杂对象，显示JSON格式
-                result += `  - ${voiceKey}: ${JSON.stringify(voiceValue, null, 2)}\n`;
+                // 如果是复杂对象，简化显示
+                result += `  - ${voiceKey}: [复杂数据对象]\n`;
               }
             } else {
               // 如果是简单值，直接显示
@@ -2609,12 +2580,12 @@ class BlueArchiveMCPServer {
       if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         result = `# ${name} 的角色变体\n\n`;
         result += variants.map(variant => 
-          `- **${variant.名称 || variant.Name}** (ID: ${variant.ID || variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+          `- **${variant.名称 || variant.Name}** (ID: ${variant.ID || variant.Id})`
         ).join('\n');
       } else {
         result = `${name} 的角色变体：\n\n`;
         result += variants.map(variant => 
-          `${variant.名称 || variant.Name} (ID: ${variant.ID || variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
+          `${variant.名称 || variant.Name} (ID: ${variant.ID || variant.Id})`
         ).join('\n');
       }
 
