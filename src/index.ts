@@ -1417,11 +1417,14 @@ class SchaleDBClient {
         const shorterLength = Math.min(studentName.length, searchName.length);
         similarity = shorterLength / longerLength * 0.8; // 降低传统匹配的权重
         
-        variants.push({
-          ...student,
-          similarity: similarity,
-          variantType: 'partial_match'
-        });
+        // 应用60%相似度阈值筛选
+        if (similarity >= 0.6) {
+          variants.push({
+            ...student,
+            similarity: similarity,
+            variantType: 'partial_match'
+          });
+        }
         continue;
       }
       
@@ -1461,7 +1464,27 @@ class SchaleDBClient {
         const targetStudent = student.find(s => s.Id === studentId);
         
         if (targetStudent) {
-          const avatarUrl = `https://schaledb.com/images/student/portrait/${studentId}.webp`;
+          // 构建头像URL，根据avatarType参数选择正确的路径
+          const baseUrl = "https://schaledb.com/images/student";
+          let avatarUrl: string;
+          
+          switch (avatarType?.toLowerCase()) {
+            case 'portrait':
+              avatarUrl = `${baseUrl}/portrait/${studentId}.webp`;
+              break;
+            case 'collection':
+              avatarUrl = `${baseUrl}/collection/${studentId}.webp`;
+              break;
+            case 'icon':
+              avatarUrl = `${baseUrl}/icon/${studentId}.webp`;
+              break;
+            case 'lobby':
+              avatarUrl = `${baseUrl}/lobby/${studentId}.webp`;
+              break;
+            default:
+              avatarUrl = `${baseUrl}/portrait/${studentId}.webp`;
+          }
+          
           results.push({
             studentId,
             name: targetStudent.Name,
