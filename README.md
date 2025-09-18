@@ -29,37 +29,80 @@ npm run build
 ## 可用工具
 
 ### 1. `get_students`
-获取学生列表，支持搜索和语言选择
+获取学生列表，支持多种筛选条件和语言选择
 
 **参数：**
 - `language` (string): 语言代码 (cn, en, jp, kr, th, tw) 默认为 "cn"
 - `search` (string): 搜索关键词（学生名称、学校、社团）
 - `limit` (number): 返回数量限制，默认 20
+- `detailed` (boolean): 是否返回详细信息，默认 false
 
-### 2. `get_student_info`
-获取单个学生的详细信息
+### 2. `get_student_by_name`
+通过名称精确查找学生信息，支持模糊匹配
+
+**参数：**
+- `name` (string): 学生名称（必填）
+- `language` (string): 语言代码，默认为 "cn"
+- `detailed` (boolean): 是否返回详细信息，默认 false
+
+### 3. `find_student_variants`
+查找学生的所有变体版本（如节日版、特殊版等），基于名称相似度匹配
+
+**参数：**
+- `name` (string): 学生名称（必填）
+- `language` (string): 语言代码，默认为 "cn"
+- `includeOriginal` (boolean): 是否包含原版学生，默认 true
+
+### 4. `get_student_avatar`
+获取学生头像图片，支持多种头像类型
 
 **参数：**
 - `studentId` (number): 学生ID（必填）
-- `language` (string): 语言代码，默认为 "cn"
+- `avatarType` (string): 头像类型 (Portrait, Collection, Lobby, etc.)
 
-### 3. `get_raids`
-获取团队战活动信息
+### 5. `get_student_voice`
+获取学生语音文件，支持多种语音类型和语言
+
+**参数：**
+- `studentId` (number): 学生ID（必填）
+- `voiceType` (string): 语音类型 (Battle_Start, Victory, etc.)
+- `language` (string): 语言代码，默认为 "jp"
+
+### 6. `get_multiple_student_avatars`
+批量获取多个学生的头像，适用于需要展示多个角色的场景
+
+**参数：**
+- `studentIds` (array): 学生ID数组（必填）
+- `avatarType` (string): 头像类型，默认为 "Portrait"
+
+### 7. `get_multiple_student_voices`
+批量获取多个学生的语音文件
+
+**参数：**
+- `studentIds` (array): 学生ID数组（必填）
+- `voiceType` (string): 语音类型，默认为 "Battle_Start"
+- `language` (string): 语言代码，默认为 "jp"
+
+### 8. `get_raids`
+获取总力战（团队战）活动信息，包括BOSS数据和奖励
 
 **参数：**
 - `language` (string): 语言代码，默认为 "cn"
 - `search` (string): 按活动名称搜索
+- `detailed` (boolean): 是否返回详细信息，默认 false
 
-### 4. `get_equipment`
-获取装备列表信息
+### 9. `get_equipment`
+获取装备列表信息，支持按类别和等级筛选
 
 **参数：**
 - `language` (string): 语言代码，默认为 "cn"
 - `category` (string): 装备类别 (Hat, Glove, Shoes, Bag, Badge, Charm, Haar Accessory, Necktie)
 - `tier` (number): 装备等级 (1-3)
+- `limit` (number): 返回数量限制，默认 20
+- `detailed` (boolean): 是否返回详细信息，默认 false
 
-### 5. `get_game_config`
-获取游戏配置信息
+### 10. `get_game_config`
+获取游戏配置信息和服务器状态
 
 **参数：**
 - `includeRegions` (boolean): 是否包含地区信息，默认 true
@@ -96,7 +139,30 @@ npm run build
 我想要2级帽子装备
 有什么团队战活动吗？
 查一下亚比学院的学生
+找一下阿露的所有变体版本
+获取学生的头像和语音
 ```
+
+## 测试工具
+
+项目包含了多个测试脚本来验证功能：
+
+### 1. 基础功能测试
+```bash
+node simple_test.cjs
+```
+测试基本的学生查询和变体查找功能。
+
+### 2. 全面功能测试
+```bash
+node comprehensive_test.cjs
+```
+测试所有工具的完整功能，包括：
+- 学生列表获取
+- 名称查找
+- 变体查找
+- 总力战信息
+- 装备查询
 
 ## 数据来源
 

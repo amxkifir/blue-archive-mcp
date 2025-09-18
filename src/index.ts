@@ -326,6 +326,179 @@ const GetMultipleStudentVoicesSchema = z.object({
   format: z.string().default("text").optional() // 输出格式：text, markdown, md
 });
 
+// 配置接口
+interface MCPConfig {
+  baseUrl: string;
+  defaultLanguage: string;
+  cacheTimeout: number;
+  logLevel: 'debug' | 'info' | 'warn' | 'error';
+}
+
+// 默认配置
+const DEFAULT_CONFIG: MCPConfig = {
+  baseUrl: 'https://schaledb.com/data',
+  defaultLanguage: 'cn',
+  cacheTimeout: 5 * 60 * 1000, // 5分钟
+  logLevel: 'info'
+};
+
+// 日志工具
+class Logger {
+  private level: string;
+  
+  constructor(level: string = 'info') {
+    this.level = level;
+  }
+  
+  private shouldLog(level: string): boolean {
+    const levels = ['debug', 'info', 'warn', 'error'];
+    return levels.indexOf(level) >= levels.indexOf(this.level);
+  }
+  
+  debug(message: string, ...args: any[]): void {
+    if (this.shouldLog('debug')) {
+      console.error(`[DEBUG] ${message}`, ...args);
+    }
+  }
+  
+  info(message: string, ...args: any[]): void {
+    if (this.shouldLog('info')) {
+      console.error(`[INFO] ${message}`, ...args);
+    }
+  }
+  
+  warn(message: string, ...args: any[]): void {
+    if (this.shouldLog('warn')) {
+      console.error(`[WARN] ${message}`, ...args);
+    }
+  }
+  
+  error(message: string, ...args: any[]): void {
+    if (this.shouldLog('error')) {
+      console.error(`[ERROR] ${message}`, ...args);
+    }
+  }
+
+  log(message: string, ...args: any[]): void {
+    this.info(message, ...args);
+  }
+}
+
+// 参数处理工具类
+class ParameterHandler {
+  // 统一处理language参数
+  static normalizeLanguage(language?: string): string {
+    return language || DEFAULT_CONFIG.defaultLanguage;
+  }
+
+  // 统一处理detailed参数
+  static normalizeDetailed(detailed?: boolean): boolean {
+    return detailed ?? false;
+  }
+
+  // 统一处理limit参数
+  static normalizeLimit(limit?: number, defaultLimit: number = 20): number {
+    return limit || defaultLimit;
+  }
+
+  // 统一处理format参数
+  static normalizeFormat(format?: string, defaultFormat: string = 'text'): string {
+    return format || defaultFormat;
+  }
+}
+
+// 统一错误处理工具类
+class ErrorHandler {
+  private static logger = new Logger();
+
+  /**
+   * 处理并格式化错误信息
+   */
+  static handleError(error: unknown, context?: string): string {
+    let errorMessage: string;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else {
+      errorMessage = '未知错误';
+    }
+
+    const fullMessage = context ? `${context}: ${errorMessage}` : errorMessage;
+    this.logger.error(fullMessage);
+    
+    return errorMessage;
+  }
+
+  /**
+   * 创建标准化的错误响应
+   */
+  static createErrorResponse(error: unknown, context?: string): { content: Array<{ type: string; text: string }> } {
+    const errorMessage = this.handleError(error, context);
+    
+    return {
+      content: [
+        {
+          type: "text",
+          text: context ? `${context}时出错: ${errorMessage}` : `操作失败: ${errorMessage}`
+        }
+      ]
+    };
+  }
+
+  /**
+   * 安全执行异步操作
+   */
+  static async safeExecute<T>(
+    operation: () => Promise<T>,
+    context?: string,
+    fallback?: T
+  ): Promise<T | undefined> {
+    try {
+      return await operation();
+    } catch (error) {
+      this.handleError(error, context);
+      return fallback;
+    }
+  }
+}
+
+// 语音数据接口
+interface VoiceData {
+  Group?: string;
+  GroupIndex?: number;
+  Id?: number;
+  AudioClip?: string;
+  Transcription?: string;
+  [key: string]: any;
+}
+
+// 学生变体接口
+interface StudentVariant extends Student {
+  similarity: number;
+}
+
+// 头像结果接口
+interface AvatarResult {
+  studentId: number;
+  name: string | null;
+  avatarUrl: string | null;
+  avatarType: string;
+  success: boolean;
+  error?: string;
+}
+
+// 语音结果接口
+interface VoiceResult {
+  studentId: number;
+  name: string | null;
+  voices: VoiceData[];
+  voiceType: string;
+  success: boolean;
+  error?: string;
+}
+
 // 缓存类
 class Cache<T> {
   private cache = new Map<string, { data: T; timestamp: number }>();
@@ -358,25 +531,36 @@ class Cache<T> {
 
 // SchaleDB API 客户端
 class SchaleDBClient {
-  private baseUrl = 'https://schaledb.com/data';
-  private cache = new Cache<any>();
+  private config: MCPConfig;
+  private logger: Logger;
+  private cache: Cache<any>;
+
+  constructor(config: Partial<MCPConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.logger = new Logger(this.config.logLevel);
+    this.cache = new Cache<any>(this.config.cacheTimeout / (60 * 1000));
+  }
 
   private async fetchData(endpoint: string): Promise<any> {
     const cachedData = this.cache.get(endpoint);
     if (cachedData) {
+      this.logger.debug(`Cache hit for endpoint: ${endpoint}`);
       return cachedData;
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/${endpoint}`);
+      this.logger.debug(`Fetching data from: ${this.config.baseUrl}/${endpoint}`);
+      const response = await fetch(`${this.config.baseUrl}/${endpoint}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       this.cache.set(endpoint, data);
+      this.logger.info(`Successfully fetched and cached data for: ${endpoint}`);
       return data;
     } catch (error) {
-      throw new Error(`Failed to fetch ${endpoint}: ${error}`);
+      const errorMessage = ErrorHandler.handleError(error, `Failed to fetch ${endpoint}`);
+      throw new Error(`Failed to fetch ${endpoint}: ${errorMessage}`);
     }
   }
 
@@ -652,8 +836,8 @@ class SchaleDBClient {
     return enemy;
   }
 
-  // 增强的getStudents方法 - 支持智能搜索和字段精简
-  async getStudentsEnhanced(options: {
+  // 统一的学生查询方法 - 支持所有查询选项
+  async getStudents(options: {
     language?: string;
     search?: string;
     limit?: number;
@@ -661,7 +845,8 @@ class SchaleDBClient {
     school?: string;
     starGrade?: number;
     role?: string;
-  } = {}): Promise<any[]> {
+    compressed?: boolean;
+  } = {}): Promise<Student[]> {
     const {
       language = 'cn',
       search,
@@ -669,10 +854,13 @@ class SchaleDBClient {
       detailed = false,
       school,
       starGrade,
-      role
+      role,
+      compressed = false
     } = options;
 
-    const suffix = '.json';
+    this.logger.log(`获取学生数据: ${JSON.stringify(options)}`);
+
+    const suffix = compressed ? '.min.json' : '.json';
     const data = await this.fetchData(`${language}/students${suffix}`);
     
     // 处理数据格式：如果是对象，转换为数组
@@ -683,24 +871,24 @@ class SchaleDBClient {
       students = Array.isArray(data) ? data : [];
     }
 
-    // 应用过滤条件
+    // 应用筛选条件
     let filteredStudents = students;
 
     // 按学校过滤
     if (school) {
-      filteredStudents = filteredStudents.filter(s => 
+      filteredStudents = filteredStudents.filter((s: Student) => 
         s.School && s.School.toLowerCase().includes(school.toLowerCase())
       );
     }
 
     // 按星级过滤
     if (starGrade) {
-      filteredStudents = filteredStudents.filter(s => s.StarGrade === starGrade);
+      filteredStudents = filteredStudents.filter((s: Student) => s.StarGrade === starGrade);
     }
 
     // 按职业过滤
     if (role) {
-      filteredStudents = filteredStudents.filter(s => 
+      filteredStudents = filteredStudents.filter((s: Student) => 
         s.TacticRole && s.TacticRole.toLowerCase().includes(role.toLowerCase())
       );
     }
@@ -721,9 +909,11 @@ class SchaleDBClient {
     return limitedStudents.map(student => this.simplifyStudentData(student, detailed));
   }
 
-  // 新增：通过名称查询学生
-  async getStudentByName(name: string, language: string = 'cn', detailed: boolean = false): Promise<any | null> {
-    const students = await this.getStudentsEnhanced({ 
+  // 通过名称查询学生
+  async getStudentByName(name: string, language: string = 'cn', detailed: boolean = false): Promise<Student | null> {
+    this.logger.log(`按名称查询学生: ${name}`);
+    
+    const students = await this.getStudents({ 
       language, 
       search: name, 
       limit: 1, 
@@ -731,20 +921,6 @@ class SchaleDBClient {
     });
     
     return students.length > 0 ? students[0] : null;
-  }
-
-  async getStudents(language: string = 'cn', compressed: boolean = false): Promise<Student[]> {
-    const suffix = compressed ? '.min.json' : '.json';
-    const data = await this.fetchData(`${language}/students${suffix}`);
-    
-    // 处理数据格式：如果是对象，转换为数组
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      // 如果数据是对象格式，将值转换为数组
-      return Object.values(data) as Student[];
-    }
-    
-    // 如果已经是数组，直接返回
-    return Array.isArray(data) ? data : [];
   }
 
   // 增强的getRaids方法 - 支持数据精简
@@ -1155,7 +1331,7 @@ class SchaleDBClient {
 
   // 查找角色变体
   async findStudentVariants(name: string, language: string = 'cn', includeOriginal: boolean = true): Promise<any[]> {
-    const students = await this.getStudentsEnhanced({ language, limit: 1000 });
+    const students = await this.getStudents({ language, limit: 1000 });
     
     if (students.length === 0) {
       return [];
@@ -1220,7 +1396,7 @@ class SchaleDBClient {
     
     for (const studentId of studentIds) {
       try {
-        const student = await this.getStudentsEnhanced({ language, limit: 1000 });
+        const student = await this.getStudents({ language, limit: 1000 });
         const targetStudent = student.find(s => s.Id === studentId);
         
         if (targetStudent) {
@@ -1266,7 +1442,7 @@ class SchaleDBClient {
       
       for (const studentId of studentIds) {
         try {
-          const student = await this.getStudentsEnhanced({ language, limit: 1000 });
+          const student = await this.getStudents({ language, limit: 1000 });
           const targetStudent = student.find(s => s.Id === studentId);
           
           if (targetStudent && voiceData && voiceData[studentId]) {
@@ -1355,77 +1531,77 @@ class BlueArchiveMCPServer {
       const tools: Tool[] = [
           {
             name: "get_students",
-            description: "获取学生列表，支持按语言和学生查找，现在支持智能搜索、过滤和数据精简",
+            description: "获取蔚蓝档案学生列表。支持多种筛选条件：按学校（如三一、格黑娜等）、星级（1-3星）、职业（坦克、治疗、输出等）筛选。支持名称搜索（中文、日文、英文均可）。可选择返回详细信息（包含属性、技能等）或简要信息（仅基本信息）。默认返回20个结果，可调整限制数量。",
             inputSchema: zodToJsonSchema(GetStudentsSchema) as ToolInput,
           },
           {
             name: "get_student_by_name",
-            description: "通过名称直接查询学生信息，支持模糊匹配和多语言",
+            description: "通过学生名称精确查找特定学生信息。支持中文、日文、英文名称搜索，如'アル'、'阿露'、'Aru'等。可选择返回详细信息（包含完整属性、技能、装备数据）或简要信息（仅基本信息）。适用于已知学生名称的精确查询。",
             inputSchema: zodToJsonSchema(GetStudentByNameSchema) as ToolInput,
           },
           {
             name: "get_student_info",
-            description: "获取特定学生详细信息",
+            description: "通过学生ID获取完整的学生详细信息。返回包括基础属性、成长数值、技能详情、装备信息、好感度奖励、语音数据等全面信息。适用于需要获取学生完整数据的场景，如攻略制作、数据分析等。",
             inputSchema: zodToJsonSchema(GetStudentInfoSchema) as ToolInput,
           },
           {
             name: "get_raids",
-            description: "获取团队战（RAID）信息，支持数据精简",
+            description: "获取总力战（Raid）信息。包含各个总力战Boss的基本信息、地形类型、推荐等级等。支持名称搜索功能，可选择返回详细信息（包含具体机制、弱点等）或简要信息。适用于总力战攻略查询和Boss信息查看。",
             inputSchema: zodToJsonSchema(GetRaidsSchema) as ToolInput,
           },
           {
             name: "get_equipment",
-            description: "获取装备列表，支持数据精简",
+            description: "获取装备信息数据。支持按装备类别（如T1-T7装备）、等级筛选。可选择返回详细信息（包含装备效果、获取途径等）或简要信息。适用于装备查询、升级规划等场景。默认返回20个结果。",
             inputSchema: zodToJsonSchema(GetEquipmentSchema) as ToolInput,
           },
           {
             name: "get_game_config",
-            description: "获取游戏配置信息",
+            description: "获取游戏配置和版本信息。包含当前游戏版本、服务器区域设置（国服、日服、国际服等）、数据更新时间等基础配置信息。适用于了解当前数据版本和服务器状态。",
             inputSchema: zodToJsonSchema(GetGameConfigSchema) as ToolInput,
           },
           {
             name: "get_stages",
-            description: "获取关卡信息，支持按区域、章节、难度筛选和智能搜索",
+            description: "获取关卡信息数据。支持按区域（如主线、活动等）、章节、难度筛选。支持关卡名称搜索。可选择返回详细信息（包含敌人配置、掉落物品、推荐等级等）或简要信息。适用于关卡攻略查询和掉落物查看。",
             inputSchema: zodToJsonSchema(GetStagesSchema) as ToolInput,
           },
           {
             name: "get_items",
-            description: "获取物品信息，支持按类别、稀有度、标签筛选和智能搜索",
+            description: "获取游戏物品信息。支持按物品类别（如材料、消耗品等）、稀有度、标签筛选。支持物品名称搜索。可选择返回详细信息（包含获取途径、用途说明等）或简要信息。适用于物品查询和获取途径查看。",
             inputSchema: zodToJsonSchema(GetItemsSchema) as ToolInput,
           },
           {
             name: "get_furniture",
-            description: "获取家具信息，支持按类别、类型、稀有度、标签筛选和智能搜索",
+            description: "获取咖啡厅家具信息。支持按家具类别、类型、稀有度、标签筛选。支持家具名称搜索。可选择返回详细信息（包含舒适度加成、获取方式等）或简要信息。适用于咖啡厅装修规划和家具收集。",
             inputSchema: zodToJsonSchema(GetFurnitureSchema) as ToolInput,
           },
           {
             name: "get_enemies",
-            description: "获取敌人信息，支持按类型、等级、护甲类型、子弹类型、地形筛选和智能搜索",
+            description: "获取敌人信息数据。支持按敌人类型、等级、护甲类型（轻装甲、重装甲、特殊装甲）、子弹类型（爆发、贯通、神秘）、适应地形筛选。支持敌人名称搜索。可选择返回详细信息（包含技能、属性等）或简要信息。适用于战斗策略制定。",
             inputSchema: zodToJsonSchema(GetEnemiesSchema) as ToolInput,
           },
           {
             name: "get_student_avatar",
-            description: "获取学生头像图片，支持通过学生ID或名称查询。现在仅支持Markdown格式输出，返回可直接在Markdown中显示的图片链接。支持多种头像类型：portrait（全身立绘）、collection（收藏）、icon（头像）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）是不同的角色ID，而非不同的头像类型。LLM可以根据需要选择合适的头像类型。",
+            description: "获取学生头像图片，支持多种头像类型。通过学生ID或名称查询，返回Markdown格式的图片链接。支持的头像类型：portrait（全身立绘，默认）、collection（收藏立绘）、icon（头像图标）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）拥有独立的角色ID，需要先通过find_student_variants查找变体。",
             inputSchema: zodToJsonSchema(GetStudentAvatarSchema) as ToolInput,
           },
           {
             name: "get_student_voice",
-            description: "获取学生语音信息，支持通过学生ID或名称查询不同类型的语音。支持两种输出格式：text（默认）返回纯文本格式的语音信息，markdown/md格式返回包含音频链接的Markdown格式文本，可直接在支持Markdown的环境中播放音频。建议在需要在Markdown中展示音频时使用format=markdown参数。",
+            description: "获取学生语音信息和音频链接。支持通过学生ID或名称查询不同类型的语音：normal（日常语音）、battle（战斗语音）、lobby（大厅语音）、event（活动语音）、all（全部语音，默认）。支持text（纯文本）和markdown（包含音频播放链接）两种输出格式。Markdown格式可在支持的环境中直接播放音频。",
             inputSchema: zodToJsonSchema(GetStudentVoiceSchema) as ToolInput,
           },
           {
             name: "find_student_variants",
-            description: "查找角色的所有变体（如泳装、新春等不同服装版本）。基于名字相似度匹配，帮助LLM快速发现一个角色的所有变体，避免重复查询。支持中文、日文、英文名称搜索。",
+            description: "查找角色的所有变体版本（如泳装、新春、兔女郎等不同服装）。基于名称相似度智能匹配，帮助快速发现一个角色的所有变体形态。支持中文、日文、英文名称搜索，如输入'アル'可找到'アル'、'アル（正月）'等所有变体。返回变体列表及相似度评分。",
             inputSchema: zodToJsonSchema(FindStudentVariantsSchema) as ToolInput,
           },
           {
             name: "get_multiple_student_avatars",
-            description: "批量获取多个学生的头像图片，提高查询效率。支持通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。返回Markdown格式的图片链接。",
+            description: "批量获取多个学生的头像图片，提高查询效率。通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。支持所有头像类型（portrait、collection、icon、lobby），返回Markdown格式的图片展示。适用于制作角色对比、团队展示等场景。",
             inputSchema: zodToJsonSchema(GetMultipleStudentAvatarsSchema) as ToolInput,
           },
           {
             name: "get_multiple_student_voices",
-            description: "批量获取多个学生的语音信息，提高查询效率。支持通过学生ID数组一次性获取多个角色的语音，避免多次单独调用。支持text和markdown两种输出格式。",
+            description: "批量获取多个学生的语音信息，提高查询效率。通过学生ID数组一次性获取多个角色的语音数据，避免多次单独调用。支持所有语音类型和text、markdown两种输出格式。适用于制作语音合集、角色对比等场景。",
             inputSchema: zodToJsonSchema(GetMultipleStudentVoicesSchema) as ToolInput,
           }
         ];
@@ -1522,21 +1698,25 @@ class BlueArchiveMCPServer {
 
   private async handleGetStudents(args: any) {
     const {
-      language = 'cn',
+      language,
       search,
-      limit = 20,
-      detailed = false,
+      limit,
+      detailed,
       school,
       starGrade,
       role
     } = args;
 
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit, 20);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+
     // 使用增强的方法
-    const students = await this.client.getStudentsEnhanced({
-      language,
+    const students = await this.client.getStudents({
+      language: normalizedLanguage,
       search,
-      limit,
-      detailed,
+      limit: normalizedLimit,
+      detailed: normalizedDetailed,
       school,
       starGrade,
       role
@@ -1584,9 +1764,12 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentByName(args: any) {
-    const { name, language = 'cn', detailed = false } = args;
+    const { name, language, detailed } = args;
 
-    const student = await this.client.getStudentByName(name, language, detailed);
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+
+    const student = await this.client.getStudentByName(name, normalizedLanguage, normalizedDetailed);
 
     if (!student) {
       return {
@@ -1600,7 +1783,7 @@ class BlueArchiveMCPServer {
     }
 
     let info: string;
-    if (detailed) {
+    if (normalizedDetailed) {
       info = `
 学生ID: ${student.Id}
 名称: ${student.Name}
@@ -1629,9 +1812,11 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentInfo(args: any) {
-    const { studentId, language = 'cn' } = args;
+    const { studentId, language } = args;
 
-    const students = await this.client.getStudents(language);
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+
+    const students = await this.client.getStudents({ language: normalizedLanguage });
     const student = students.find(s => s.Id === studentId);
 
     if (!student) {
@@ -1659,13 +1844,16 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetRaids(args: any) {
-    const { language = 'cn', search, detailed = false } = args;
+    const { language, search, detailed } = args;
+
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
 
     let raids: any[];
-    if (detailed) {
-      raids = await this.client.getRaids(language);
+    if (normalizedDetailed) {
+      raids = await this.client.getRaids(normalizedLanguage);
     } else {
-      raids = await this.client.getRaidsEnhanced(language, false);
+      raids = await this.client.getRaidsEnhanced(normalizedLanguage, false);
     }
 
     let filteredRaids = raids;
@@ -1714,9 +1902,13 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetEquipment(args: any) {
-    const { language = 'cn', category, tier, limit = 20, detailed = false } = args;
+    const { language, category, tier, limit, detailed } = args;
 
-    const allEquipment = await this.client.getEquipment(language);
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit, 20);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+
+    const allEquipment = await this.client.getEquipment(normalizedLanguage);
     let filteredEquipment = allEquipment;
 
     // 按类别过滤
@@ -1744,15 +1936,15 @@ class BlueArchiveMCPServer {
     }
 
     // 限制返回数量
-    const limitedEquipment = filteredEquipment.slice(0, limit);
+    const limitedEquipment = filteredEquipment.slice(0, normalizedLimit);
 
     // 应用数据精简
     const processedEquipment = limitedEquipment.map(eq => 
-      this.client['simplifyEquipmentData'](eq, detailed)
+      this.client['simplifyEquipmentData'](eq, normalizedDetailed)
     );
 
     let result: string;
-    if (detailed) {
+    if (normalizedDetailed) {
       result = processedEquipment.map(eq => {
         return `ID: ${eq.Id}
 名称: ${eq.Name || '未知'}
@@ -1802,14 +1994,28 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStages(args: any) {
+    const {
+      language,
+      search,
+      area,
+      chapter,
+      difficulty,
+      limit,
+      detailed
+    } = args;
+
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit, 20);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+
     const processedStages = await this.client.getStagesEnhanced({
-      language: args.language,
-      search: args.search,
-      area: args.area,
-      chapter: args.chapter,
-      difficulty: args.difficulty,
-      limit: args.limit,
-      detailed: args.detailed
+      language: normalizedLanguage,
+      search,
+      area,
+      chapter,
+      difficulty,
+      limit: normalizedLimit,
+      detailed: normalizedDetailed
     });
 
     if (processedStages.length === 0) {
@@ -1834,11 +2040,11 @@ class BlueArchiveMCPServer {
       if (stage.Terrain) result += `   地形: ${stage.Terrain}\n`;
       if (stage.RecommendLevel) result += `   推荐等级: ${stage.RecommendLevel}\n`;
       
-      if (args.detailed && stage.DropList && stage.DropList.length > 0) {
+      if (normalizedDetailed && stage.DropList && stage.DropList.length > 0) {
         result += `   掉落物品: ${stage.DropList.map((drop: any) => drop.Name || drop.Id).join(', ')}\n`;
       }
       
-      if (args.detailed && stage.EnemyList && stage.EnemyList.length > 0) {
+      if (normalizedDetailed && stage.EnemyList && stage.EnemyList.length > 0) {
         result += `   敌人列表: ${stage.EnemyList.map((enemy: any) => enemy.Name || enemy.Id).join(', ')}\n`;
       }
       
@@ -1858,14 +2064,18 @@ class BlueArchiveMCPServer {
   private async handleGetItems(args: any) {
     const { language, search, category, rarity, tags, limit, detailed } = args;
     
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit, 20);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+    
     const processedItems = await this.client.getItemsEnhanced({
-      language,
+      language: normalizedLanguage,
       search,
       category,
       rarity,
       tags,
-      limit,
-      detailed
+      limit: normalizedLimit,
+      detailed: normalizedDetailed
     });
 
     let result = '';
@@ -1875,7 +2085,7 @@ class BlueArchiveMCPServer {
       result += `   类别: ${item.Category || 'N/A'}\n`;
       result += `   稀有度: ${item.Rarity !== undefined ? item.Rarity : 'N/A'}\n`;
       
-      if (detailed) {
+      if (normalizedDetailed) {
         if (item.Tags && item.Tags.length > 0) {
           result += `   标签: ${item.Tags.join(', ')}\n`;
         }
@@ -1904,8 +2114,22 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetFurniture(args: any) {
-    const parsed = GetFurnitureSchema.parse(args);
-    const processedFurniture = await this.client.getFurnitureEnhanced(parsed);
+    const { language, search, category, type, rarity, tags, limit, detailed } = args;
+    
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+    
+    const processedFurniture = await this.client.getFurnitureEnhanced({
+      language: normalizedLanguage,
+      search,
+      category,
+      type,
+      rarity,
+      tags,
+      limit: normalizedLimit,
+      detailed: normalizedDetailed
+    });
     
     let result = '';
     processedFurniture.forEach((furniture, index) => {
@@ -1916,7 +2140,7 @@ class BlueArchiveMCPServer {
       result += `   稀有度: ${furniture.Rarity || 'N/A'}\n`;
       result += `   舒适度加成: ${furniture.ComfortBonus || 0}\n`;
       
-      if (parsed.detailed) {
+      if (normalizedDetailed) {
         if (furniture.Tags && furniture.Tags.length > 0) {
           result += `   标签: ${furniture.Tags.join(', ')}\n`;
         }
@@ -1946,18 +2170,6 @@ class BlueArchiveMCPServer {
 
   private async handleGetEnemies(args: any) {
     const {
-      language = 'cn',
-      search,
-      type,
-      rank,
-      armorType,
-      bulletType,
-      terrain,
-      limit = 20,
-      detailed = false
-    } = args;
-
-    const enemies = await this.client.getEnemiesEnhanced({
       language,
       search,
       type,
@@ -1967,6 +2179,22 @@ class BlueArchiveMCPServer {
       terrain,
       limit,
       detailed
+    } = args;
+
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedLimit = ParameterHandler.normalizeLimit(limit, 20);
+    const normalizedDetailed = ParameterHandler.normalizeDetailed(detailed);
+
+    const enemies = await this.client.getEnemiesEnhanced({
+      language: normalizedLanguage,
+      search,
+      type,
+      rank,
+      armorType,
+      bulletType,
+      terrain,
+      limit: normalizedLimit,
+      detailed: normalizedDetailed
     });
 
     let content = `找到 ${enemies.length} 个敌人：\n\n`;
@@ -2020,14 +2248,17 @@ class BlueArchiveMCPServer {
   }
 
   private async handleGetStudentAvatar(args: any) {
-    const { studentId, name, language, avatarType, format = 'markdown' } = args;
+    const { studentId, name, language, avatarType, format } = args;
+    
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedFormat = ParameterHandler.normalizeFormat(format, 'markdown');
     
     // 如果提供了学生ID，直接使用
     let targetStudentId = studentId;
     
     // 如果没有提供学生ID但提供了名称，先查找学生
     if (!targetStudentId && name) {
-      const student = await this.client.getStudentByName(name, language);
+      const student = await this.client.getStudentByName(name, normalizedLanguage);
       if (!student) {
         return {
           content: [
@@ -2074,8 +2305,8 @@ class BlueArchiveMCPServer {
           avatarUrl = `${baseUrl}/portrait/${targetStudentId}.webp`;
       }
       
-      // 获取学生信息用于显示名称
-      const student = await this.client.getStudentByName(name || targetStudentId.toString(), language);
+      // 获取学生信息以显示名称
+      const student = await this.client.getStudentByName(name || targetStudentId.toString(), normalizedLanguage);
       const studentName = student?.Name || `学生 ${targetStudentId}`;
       
       // 头像类型中文名称映射
@@ -2098,26 +2329,22 @@ class BlueArchiveMCPServer {
         ]
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `获取头像时出错: ${error instanceof Error ? error.message : '未知错误'}\n请检查学生ID是否正确或网络连接是否正常。`
-          }
-        ]
-      };
+      return ErrorHandler.createErrorResponse(error, "获取头像时出错");
     }
   }
 
   private async handleGetStudentVoice(args: any) {
-    const { studentId, name, language, voiceType, format = 'text' } = args;
+    const { studentId, name, language, voiceType, format } = args;
+    
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedFormat = ParameterHandler.normalizeFormat(format, 'text');
     
     // 如果提供了学生ID，直接使用
     let targetStudentId = studentId;
     
     // 如果没有提供学生ID但提供了名称，先查找学生
     if (!targetStudentId && name) {
-      const student = await this.client.getStudentByName(name, language);
+      const student = await this.client.getStudentByName(name, normalizedLanguage);
       if (!student) {
         return {
           content: [
@@ -2144,7 +2371,7 @@ class BlueArchiveMCPServer {
     
     try {
       // 获取语音数据
-      const voiceData = await this.client.getVoiceData(language);
+      const voiceData = await this.client.getVoiceData(normalizedLanguage);
       const studentVoices = voiceData[targetStudentId];
       
       if (!studentVoices) {
@@ -2158,8 +2385,8 @@ class BlueArchiveMCPServer {
         };
       }
       
-      // 获取学生信息用于显示名称
-      const student = await this.client.getStudentByName(name || targetStudentId.toString(), language);
+      // 获取学生信息以显示名称
+      const student = await this.client.getStudentByName(name || targetStudentId.toString(), normalizedLanguage);
       const studentName = student?.Name || `学生 ${targetStudentId}`;
       
       // 根据voiceType筛选语音类型
@@ -2178,8 +2405,8 @@ class BlueArchiveMCPServer {
         };
       }
       
-      // 如果请求Markdown格式，返回Markdown格式
-      if (format === 'markdown' || format === 'md') {
+      // 根据格式返回结果
+      if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         let result = `# ${studentName} 的语音信息\n\n`;
         
         voiceTypes.forEach(type => {
@@ -2261,14 +2488,7 @@ class BlueArchiveMCPServer {
         ]
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `获取语音数据时出错: ${error instanceof Error ? error.message : '未知错误'}`
-          }
-        ]
-      };
+      return ErrorHandler.createErrorResponse(error, "获取语音数据时出错");
     }
   }
 
@@ -2276,8 +2496,11 @@ class BlueArchiveMCPServer {
   private async handleFindStudentVariants(args: any) {
     const { name, language, includeOriginal, format } = args;
     
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedFormat = ParameterHandler.normalizeFormat(format, 'text');
+
     try {
-      const variants = await this.client.findStudentVariants(name, language, includeOriginal);
+      const variants = await this.client.findStudentVariants(name, normalizedLanguage, includeOriginal);
       
       if (variants.length === 0) {
         return {
@@ -2291,7 +2514,8 @@ class BlueArchiveMCPServer {
       }
 
       let result: string;
-      if (format === 'markdown' || format === 'md') {
+      // 根据格式返回结果
+      if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         result = `# ${name} 的角色变体\n\n`;
         result += variants.map(variant => 
           `- **${variant.名称 || variant.Name}** (ID: ${variant.ID || variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(1)}%`
@@ -2312,22 +2536,18 @@ class BlueArchiveMCPServer {
         ]
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `查找角色变体时出错: ${error instanceof Error ? error.message : '未知错误'}`
-          }
-        ]
-      };
+      return ErrorHandler.createErrorResponse(error, "查找角色变体时出错");
     }
   }
 
   private async handleGetMultipleStudentAvatars(args: any) {
     const { studentIds, language, avatarType, format } = args;
     
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedFormat = ParameterHandler.normalizeFormat(format, 'markdown');
+    
     try {
-      const avatars = await this.client.getMultipleStudentAvatars(studentIds, language, avatarType);
+      const avatars = await this.client.getMultipleStudentAvatars(studentIds, normalizedLanguage, avatarType);
       
       if (avatars.length === 0) {
         return {
@@ -2341,7 +2561,7 @@ class BlueArchiveMCPServer {
       }
 
       let result: string;
-      if (format === 'markdown' || format === 'md') {
+      if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         result = `# 学生头像合集\n\n`;
         result += avatars.map(avatar => 
           `## ${avatar.name}\n![${avatar.name}的${avatar.typeName}](${avatar.url})\n`
@@ -2362,22 +2582,18 @@ class BlueArchiveMCPServer {
         ]
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `获取头像时出错: ${error instanceof Error ? error.message : '未知错误'}`
-          }
-        ]
-      };
+      return ErrorHandler.createErrorResponse(error, "获取头像时出错");
     }
   }
 
   private async handleGetMultipleStudentVoices(args: any) {
     const { studentIds, language, voiceType, format } = args;
     
+    const normalizedLanguage = ParameterHandler.normalizeLanguage(language);
+    const normalizedFormat = ParameterHandler.normalizeFormat(format, 'text');
+    
     try {
-      const voices = await this.client.getMultipleStudentVoices(studentIds, language, voiceType);
+      const voices = await this.client.getMultipleStudentVoices(studentIds, normalizedLanguage, voiceType);
       
       if (voices.length === 0) {
         return {
@@ -2391,7 +2607,7 @@ class BlueArchiveMCPServer {
       }
 
       let result: string;
-      if (format === 'markdown' || format === 'md') {
+      if (normalizedFormat === 'markdown' || normalizedFormat === 'md') {
         result = `# 学生语音合集\n\n`;
         voices.forEach(voice => {
           result += `## ${voice.name}\n\n`;
@@ -2426,14 +2642,7 @@ class BlueArchiveMCPServer {
         ]
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `获取语音数据时出错: ${error instanceof Error ? error.message : '未知错误'}`
-          }
-        ]
-      };
+      return ErrorHandler.createErrorResponse(error, "获取语音数据时出错");
     }
   }
 
@@ -2464,6 +2673,6 @@ async function main() {
 
 // 运行服务器 - 直接启动，不检查执行条件
 main().catch((error) => {
-    console.error("服务器运行错误:", error);
+    ErrorHandler.handleError(error, "服务器运行错误");
     process.exit(1);
 });

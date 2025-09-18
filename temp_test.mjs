@@ -971,77 +971,77 @@ class BlueArchiveMCPServer {
             const tools = [
                 {
                     name: "get_students",
-                    description: "获取蔚蓝档案学生列表。支持多种筛选条件：按学校（如三一、格黑娜等）、星级（1-3星）、职业（坦克、治疗、输出等）筛选。支持名称搜索（中文、日文、英文均可）。可选择返回详细信息（包含属性、技能等）或简要信息（仅基本信息）。默认返回20个结果，可调整限制数量。",
+                    description: "获取学生列表，支持按语言和学生查找，现在支持智能搜索、过滤和数据精简",
                     inputSchema: zodToJsonSchema(GetStudentsSchema),
                 },
                 {
                     name: "get_student_by_name",
-                    description: "通过学生名称精确查找特定学生信息。支持中文、日文、英文名称搜索，如'アル'、'阿露'、'Aru'等。可选择返回详细信息（包含完整属性、技能、装备数据）或简要信息（仅基本信息）。适用于已知学生名称的精确查询。",
+                    description: "通过名称直接查询学生信息，支持模糊匹配和多语言",
                     inputSchema: zodToJsonSchema(GetStudentByNameSchema),
                 },
                 {
                     name: "get_student_info",
-                    description: "通过学生ID获取完整的学生详细信息。返回包括基础属性、成长数值、技能详情、装备信息、好感度奖励、语音数据等全面信息。适用于需要获取学生完整数据的场景，如攻略制作、数据分析等。",
+                    description: "获取特定学生详细信息",
                     inputSchema: zodToJsonSchema(GetStudentInfoSchema),
                 },
                 {
                     name: "get_raids",
-                    description: "获取总力战（Raid）信息。包含各个总力战Boss的基本信息、地形类型、推荐等级等。支持名称搜索功能，可选择返回详细信息（包含具体机制、弱点等）或简要信息。适用于总力战攻略查询和Boss信息查看。",
+                    description: "获取团队战（RAID）信息，支持数据精简",
                     inputSchema: zodToJsonSchema(GetRaidsSchema),
                 },
                 {
                     name: "get_equipment",
-                    description: "获取装备信息数据。支持按装备类别（如T1-T7装备）、等级筛选。可选择返回详细信息（包含装备效果、获取途径等）或简要信息。适用于装备查询、升级规划等场景。默认返回20个结果。",
+                    description: "获取装备列表，支持数据精简",
                     inputSchema: zodToJsonSchema(GetEquipmentSchema),
                 },
                 {
                     name: "get_game_config",
-                    description: "获取游戏配置和版本信息。包含当前游戏版本、服务器区域设置（国服、日服、国际服等）、数据更新时间等基础配置信息。适用于了解当前数据版本和服务器状态。",
+                    description: "获取游戏配置信息",
                     inputSchema: zodToJsonSchema(GetGameConfigSchema),
                 },
                 {
                     name: "get_stages",
-                    description: "获取关卡信息数据。支持按区域（如主线、活动等）、章节、难度筛选。支持关卡名称搜索。可选择返回详细信息（包含敌人配置、掉落物品、推荐等级等）或简要信息。适用于关卡攻略查询和掉落物查看。",
+                    description: "获取关卡信息，支持按区域、章节、难度筛选和智能搜索",
                     inputSchema: zodToJsonSchema(GetStagesSchema),
                 },
                 {
                     name: "get_items",
-                    description: "获取游戏物品信息。支持按物品类别（如材料、消耗品等）、稀有度、标签筛选。支持物品名称搜索。可选择返回详细信息（包含获取途径、用途说明等）或简要信息。适用于物品查询和获取途径查看。",
+                    description: "获取物品信息，支持按类别、稀有度、标签筛选和智能搜索",
                     inputSchema: zodToJsonSchema(GetItemsSchema),
                 },
                 {
                     name: "get_furniture",
-                    description: "获取咖啡厅家具信息。支持按家具类别、类型、稀有度、标签筛选。支持家具名称搜索。可选择返回详细信息（包含舒适度加成、获取方式等）或简要信息。适用于咖啡厅装修规划和家具收集。",
+                    description: "获取家具信息，支持按类别、类型、稀有度、标签筛选和智能搜索",
                     inputSchema: zodToJsonSchema(GetFurnitureSchema),
                 },
                 {
                     name: "get_enemies",
-                    description: "获取敌人信息数据。支持按敌人类型、等级、护甲类型（轻装甲、重装甲、特殊装甲）、子弹类型（爆发、贯通、神秘）、适应地形筛选。支持敌人名称搜索。可选择返回详细信息（包含技能、属性等）或简要信息。适用于战斗策略制定。",
+                    description: "获取敌人信息，支持按类型、等级、护甲类型、子弹类型、地形筛选和智能搜索",
                     inputSchema: zodToJsonSchema(GetEnemiesSchema),
                 },
                 {
                     name: "get_student_avatar",
-                    description: "获取学生头像图片，支持多种头像类型。通过学生ID或名称查询，返回Markdown格式的图片链接。支持的头像类型：portrait（全身立绘，默认）、collection（收藏立绘）、icon（头像图标）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）拥有独立的角色ID，需要先通过find_student_variants查找变体。",
+                    description: "获取学生头像图片，支持通过学生ID或名称查询。现在仅支持Markdown格式输出，返回可直接在Markdown中显示的图片链接。支持多种头像类型：portrait（全身立绘）、collection（收藏）、icon（头像）、lobby（大厅立绘）。注意：不同服装的角色（如泳装、新春等）是不同的角色ID，而非不同的头像类型。LLM可以根据需要选择合适的头像类型。",
                     inputSchema: zodToJsonSchema(GetStudentAvatarSchema),
                 },
                 {
                     name: "get_student_voice",
-                    description: "获取学生语音信息和音频链接。支持通过学生ID或名称查询不同类型的语音：normal（日常语音）、battle（战斗语音）、lobby（大厅语音）、event（活动语音）、all（全部语音，默认）。支持text（纯文本）和markdown（包含音频播放链接）两种输出格式。Markdown格式可在支持的环境中直接播放音频。",
+                    description: "获取学生语音信息，支持通过学生ID或名称查询不同类型的语音。支持两种输出格式：text（默认）返回纯文本格式的语音信息，markdown/md格式返回包含音频链接的Markdown格式文本，可直接在支持Markdown的环境中播放音频。建议在需要在Markdown中展示音频时使用format=markdown参数。",
                     inputSchema: zodToJsonSchema(GetStudentVoiceSchema),
                 },
                 {
                     name: "find_student_variants",
-                    description: "查找角色的所有变体版本（如泳装、新春、兔女郎等不同服装）。基于名称相似度智能匹配，帮助快速发现一个角色的所有变体形态。支持中文、日文、英文名称搜索，如输入'アル'可找到'アル'、'アル（正月）'等所有变体。返回变体列表及相似度评分。",
+                    description: "查找角色的所有变体（如泳装、新春等不同服装版本）。基于名字相似度匹配，帮助LLM快速发现一个角色的所有变体，避免重复查询。支持中文、日文、英文名称搜索。",
                     inputSchema: zodToJsonSchema(FindStudentVariantsSchema),
                 },
                 {
                     name: "get_multiple_student_avatars",
-                    description: "批量获取多个学生的头像图片，提高查询效率。通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。支持所有头像类型（portrait、collection、icon、lobby），返回Markdown格式的图片展示。适用于制作角色对比、团队展示等场景。",
+                    description: "批量获取多个学生的头像图片，提高查询效率。支持通过学生ID数组一次性获取多个角色的头像，避免多次单独调用。返回Markdown格式的图片链接。",
                     inputSchema: zodToJsonSchema(GetMultipleStudentAvatarsSchema),
                 },
                 {
                     name: "get_multiple_student_voices",
-                    description: "批量获取多个学生的语音信息，提高查询效率。通过学生ID数组一次性获取多个角色的语音数据，避免多次单独调用。支持所有语音类型和text、markdown两种输出格式。适用于制作语音合集、角色对比等场景。",
+                    description: "批量获取多个学生的语音信息，提高查询效率。支持通过学生ID数组一次性获取多个角色的语音，避免多次单独调用。支持text和markdown两种输出格式。",
                     inputSchema: zodToJsonSchema(GetMultipleStudentVoicesSchema),
                 }
             ];
@@ -1974,7 +1974,7 @@ async function testVariants() {
     try {
         // 先测试获取学生数据
         console.log('正在获取学生数据...');
-        const students = await client.getStudentsEnhanced({ 
+        const students = await client.getStudents({ 
             language: 'jp', 
             limit: 20 
         });
@@ -1997,15 +1997,15 @@ async function testVariants() {
             
             // 测试变体发现功能
             console.log('\n=== 测试变体发现功能 ===');
-            const foundVariants = await client.findStudentVariants({
-                name: 'アル',
-                language: 'jp',
-                includeOriginal: true
-            });
+            const foundVariants = await client.findStudentVariants(
+                'アル',
+                'jp',
+                true
+            );
             
             console.log(`找到 ${foundVariants.length} 个アル的变体:`);
             foundVariants.forEach((variant, index) => {
-                console.log(`${index + 1}. ${variant.name} (ID: ${variant.id}) - 相似度: ${variant.similarity}%`);
+                console.log(`${index + 1}. ${variant.Name} (ID: ${variant.Id}) - 相似度: ${(variant.similarity * 100).toFixed(2)}%`);
             });
         }
         

@@ -101,4 +101,4 @@ fs.writeFileSync('./temp_test.cjs', code);
 console.log('测试文件已创建，正在执行...');
 
 // 执行测试
-require('./temp_test.cjs');
+import('./temp_test.mjs').catch(console.error);
