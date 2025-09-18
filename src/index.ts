@@ -2467,24 +2467,31 @@ ID: ${detailedInfo.Id}
       const student = await this.client.getStudentByName(name || targetStudentId.toString(), normalizedLanguage);
       const studentName = student?.Name || `学生 ${targetStudentId}`;
       
-      // 根据voiceType筛选语音类型
+      // 根据voiceType筛选语音类型，注意API返回的键名是首字母大写的
       let voiceTypes: string[];
       if (voiceType === 'all') {
         voiceTypes = Object.keys(studentVoices);
       } else {
-        // 检查指定的语音类型是否存在
-        if (studentVoices[voiceType]) {
-          voiceTypes = [voiceType];
+        // 尝试匹配语音类型，考虑大小写不敏感
+        const normalizedVoiceType = voiceType.toLowerCase();
+        const availableTypes = Object.keys(studentVoices);
+        
+        // 首先尝试精确匹配（忽略大小写）
+        const exactMatch = availableTypes.find(type => 
+          type.toLowerCase() === normalizedVoiceType
+        );
+        
+        if (exactMatch) {
+          voiceTypes = [exactMatch];
         } else {
-          // 尝试模糊匹配语音类型
-          const availableTypes = Object.keys(studentVoices);
-          const matchedType = availableTypes.find(type => 
-            type.toLowerCase().includes(voiceType.toLowerCase()) ||
-            voiceType.toLowerCase().includes(type.toLowerCase())
+          // 然后尝试部分匹配
+          const partialMatch = availableTypes.find(type => 
+            type.toLowerCase().includes(normalizedVoiceType) ||
+            normalizedVoiceType.includes(type.toLowerCase())
           );
           
-          if (matchedType) {
-            voiceTypes = [matchedType];
+          if (partialMatch) {
+            voiceTypes = [partialMatch];
           } else {
             return {
               content: [
@@ -2516,7 +2523,7 @@ ID: ${detailedInfo.Id}
         voiceTypes.forEach(type => {
           const voices = studentVoices[type];
           if (Array.isArray(voices) && voices.length > 0) {
-            result += `## ${type.toUpperCase()} 语音\n\n`;
+            result += `## ${type.toUpperCase()} 语音 (${voices.length}条)\n\n`;
             
             voices.forEach((voice, index) => {
               if (voice && typeof voice === 'object') {
@@ -2542,15 +2549,29 @@ ID: ${detailedInfo.Id}
                   
                   result += '\n---\n\n';
                 } else {
-                  // 如果没有AudioClip，显示可用信息
+                  // 如果没有AudioClip，显示可用信息和调试信息
                   result += `### ${group}\n`;
                   if (transcription) {
                     result += `**📝 文本:** ${transcription}\n`;
                   } else {
-                    result += `*暂无音频数据*\n`;
+                    // 显示调试信息以了解数据结构
+                    result += `**🔍 调试信息:**\n`;
+                    result += `- 数据类型: ${typeof voice}\n`;
+                    result += `- 可用字段: ${Object.keys(voice).join(', ')}\n`;
+                    if (voice.AudioClip !== undefined) {
+                      result += `- AudioClip: ${voice.AudioClip}\n`;
+                    }
+                    if (voice.Transcription !== undefined) {
+                      result += `- Transcription: ${voice.Transcription}\n`;
+                    }
+                    result += `- 完整数据: ${JSON.stringify(voice, null, 2)}\n`;
                   }
                   result += '\n';
                 }
+              } else {
+                // 处理非对象类型的语音数据
+                result += `### ${type}_${index + 1}\n`;
+                result += `**🔍 调试信息:** 数据类型为 ${typeof voice}, 值: ${voice}\n\n`;
               }
             });
           } else if (voices && typeof voices === 'object') {
@@ -2576,6 +2597,9 @@ ID: ${detailedInfo.Id}
               }
             });
             result += '\n';
+          } else {
+            // 如果该类型没有语音数据
+            result += `## ${type.toUpperCase()} 语音 (0条)\n\n*该类型暂无语音数据*\n\n`;
           }
         });
         
