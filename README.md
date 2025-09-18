@@ -1,333 +1,305 @@
-# 蔚蓝档案 Blue Archive MCP 服务器
+# Blue Archive MCP Server
 
-这是一个用于蔚蓝档案（Blue Archive）游戏的 MCP (Model Context Protocol) 服务器，提供了丰富的游戏数据查询功能。
+A Model Context Protocol (MCP) server that provides comprehensive access to Blue Archive game data, including student information, equipment, stages, items, and more.
 
-## 功能特点
+## Table of Contents
 
-- 🏫 **学生信息查询** - 获取所有学生的详细信息，包括属性、技能、装备等
-- 🔍 **智能搜索** - 支持按名称、学校、社团等条件搜索学生
-- 🎭 **角色变体** - 查找学生的所有变体版本（节日版、特殊版等）
-- 🖼️ **头像系统** - 获取学生头像图片，支持多种头像类型
-- ⚔️ **团队战数据** - 获取RAID活动信息和BOSS数据
-- ⚙️ **装备系统** - 查询装备的属性、获取方式等
-- 🎯 **多语言支持** - 支持中文、英文、日文、韩文、泰文、繁体中文等
-- 💾 **智能缓存** - 1小时客户端缓存，提升查询性能
-- 🔧 **自定义查询** - 支持按条件过滤和搜索
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Available Tools](#available-tools)
+- [Usage Examples](#usage-examples)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 安装步骤
+## Overview
 
-### 1. 安装依赖
+The Blue Archive MCP Server integrates with the SchaleDB API to provide AI assistants with real-time access to Blue Archive game data. This server implements the Model Context Protocol, enabling seamless integration with MCP-compatible clients like Claude Desktop.
 
-```bash
-cd blue_archive_mcp
-npm install
-```
+### Key Capabilities
 
-### 2. 构建项目
+- **Student Database**: Access detailed information about all Blue Archive students
+- **Equipment & Items**: Browse weapons, equipment, and consumable items
+- **Stage Information**: Get details about campaign stages and raids
+- **Multimedia Content**: Retrieve student avatars and voice clips
+- **Advanced Search**: Filter and search across all data types
+- **Multi-language Support**: Available in Chinese, Japanese, and English
 
-```bash
-npm run build
-```
+## Features
 
-### 3. 启动服务器
+- ✅ **8 Comprehensive Tools** for accessing game data
+- 🌐 **Multi-language Support** (CN/JP/EN)
+- 🔍 **Advanced Filtering** and search capabilities
+- 🖼️ **Rich Media Integration** (avatars, voice clips)
+- ⚡ **Performance Optimized** with caching
+- 🛡️ **Error Handling** and retry mechanisms
+- 📱 **Responsive Data Formatting** (text/markdown)
 
-```bash
-npm start
-```
+## Installation
 
-## 可用工具
+### Prerequisites
 
-### 1. `get_students`
-获取学生列表，支持多种筛选条件和语言选择
+- Node.js 18+ 
+- npm or yarn package manager
+- MCP-compatible client (e.g., Claude Desktop)
 
-**参数：**
-- `language` (string): 语言代码 (cn, en, jp, kr, th, tw) 默认为 "cn"
-- `search` (string): 搜索关键词（学生名称、学校、社团）
-- `limit` (number): 返回数量限制，默认 20
-- `detailed` (boolean): 是否返回详细信息，默认 false
+### Quick Start
 
-### 2. `get_student_by_name`
-通过名称精确查找学生信息，支持模糊匹配
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd blue_archive_mcp
+   ```
 
-**参数：**
-- `name` (string): 学生名称（必填）
-- `language` (string): 语言代码，默认为 "cn"
-- `detailed` (boolean): 是否返回详细信息，默认 false
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-### 3. `find_student_variants`
-查找学生的所有变体版本（如节日版、特殊版等），基于名称相似度匹配
+3. **Build the project**
+   ```bash
+   npm run build
+   ```
 
-**参数：**
-- `name` (string): 学生名称（必填）
-- `language` (string): 语言代码，默认为 "cn"
-- `includeOriginal` (boolean): 是否包含原版学生，默认 true
-- `format` (string): 输出格式 (text, markdown, md)，默认为 "text"
+4. **Test the server**
+   ```bash
+   npm start
+   ```
 
-### 4. `get_student_avatar`
-获取学生头像图片，支持多种头像类型
+## Configuration
 
-**参数：**
-- `studentId` (number): 学生ID（可选）
-- `name` (string): 学生名称（可选）
-- `avatarType` (string): 头像类型 (Portrait, Collection, Lobby, etc.)，默认为 "Portrait"
-- `language` (string): 语言代码，默认为 "cn"
+### Claude Desktop Integration
 
-### 5. `get_multiple_student_avatars`
-批量获取多个学生的头像，适用于需要展示多个角色的场景
+Add the following configuration to your Claude Desktop config file:
 
-**参数：**
-- `studentIds` (array): 学生ID数组（必填）
-- `avatarType` (string): 头像类型，默认为 "Portrait"
-- `language` (string): 语言代码，默认为 "cn"
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-### 6. `get_raids`
-获取总力战（团队战）活动信息，包括BOSS数据和奖励
-
-**参数：**
-- `language` (string): 语言代码，默认为 "cn"
-- `search` (string): 按活动名称搜索
-- `detailed` (boolean): 是否返回详细信息，默认 false
-
-### 7. `get_equipment`
-获取装备列表信息，支持按类别和等级筛选
-
-**参数：**
-- `language` (string): 语言代码，默认为 "cn"
-- `category` (string): 装备类别 (Hat, Glove, Shoes, Bag, Badge, Charm, Haar Accessory, Necktie)
-- `tier` (number): 装备等级 (1-3)
-- `limit` (number): 返回数量限制，默认 20
-- `detailed` (boolean): 是否返回详细信息，默认 false
-
-### 8. `get_game_config`
-获取游戏配置信息和服务器状态
-
-**参数：**
-- `includeRegions` (boolean): 是否包含地区信息，默认 true
-
-## 在 LLM assistant 中使用
-
-### 1. 配置服务器
-
-
-使用json快速配置：
 ```json
 {
   "mcpServers": {
     "blue-archive": {
       "command": "node",
-      "args": ["f:\\BA MCPtool\\blue_archive_mcp\\dist\\index.js"]
+      "args": ["path/to/blue_archive_mcp/dist/index.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
     }
   }
 }
 ```
 
-**注意：Windows 路径使用双斜杠或正斜杠**
+### Environment Variables
 
-### 2. 重启 LLM assistant
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ENV` | Environment mode | `development` |
+| `LOG_LEVEL` | Logging level | `info` |
+| `CACHE_TIMEOUT` | Cache timeout (ms) | `300000` |
 
-保存配置文件后重启 LLM assistant，MCP 工具就会加载完成。
+## Available Tools
 
-### 3. 使用方法
+### 1. get_students
+Retrieve student information with filtering options.
 
-在 LLM assistant 中可以直接使用自然语言查询：
+**Parameters:**
+- `language` (string, optional): Language preference (cn/jp/en) - Default: "cn"
+- `search` (string, optional): Search by student name
+- `limit` (number, optional): Maximum results - Default: 20
+- `detailed` (boolean, optional): Include detailed stats - Default: false
+- `school` (string, optional): Filter by school
+- `starGrade` (number, optional): Filter by star grade (1-3)
+- `role` (string, optional): Filter by tactical role
 
+### 2. get_student_info
+Get detailed information for a specific student.
+
+**Parameters:**
+- `studentId` (number, required): Student's unique ID
+- `language` (string, optional): Language preference - Default: "cn"
+
+### 3. get_student_by_name
+Find student by name (supports multiple languages).
+
+**Parameters:**
+- `name` (string, required): Student name in any supported language
+- `language` (string, optional): Response language - Default: "cn"
+- `detailed` (boolean, optional): Include detailed information - Default: false
+
+### 4. get_raids
+Retrieve raid information and boss data.
+
+**Parameters:**
+- `language` (string, optional): Language preference - Default: "cn"
+- `search` (string, optional): Search by raid name
+- `detailed` (boolean, optional): Include detailed stats - Default: false
+
+### 5. get_equipment
+Browse equipment and weapon data.
+
+**Parameters:**
+- `language` (string, optional): Language preference - Default: "cn"
+- `category` (string, optional): Equipment category filter
+- `tier` (number, optional): Equipment tier (1-7)
+- `limit` (number, optional): Maximum results - Default: 20
+- `detailed` (boolean, optional): Include detailed stats - Default: false
+
+### 6. get_stages
+Access campaign and stage information.
+
+**Parameters:**
+- `language` (string, optional): Language preference - Default: "cn"
+- `search` (string, optional): Search by stage name
+- `area` (string, optional): Filter by area
+- `chapter` (string, optional): Filter by chapter
+- `difficulty` (string, optional): Filter by difficulty
+- `limit` (number, optional): Maximum results - Default: 20
+- `detailed` (boolean, optional): Include detailed information - Default: false
+
+### 7. get_items
+Retrieve consumable items and materials.
+
+**Parameters:**
+- `language` (string, optional): Language preference - Default: "cn"
+- `search` (string, optional): Search by item name
+- `category` (string, optional): Item category filter
+- `rarity` (number, optional): Item rarity (1-5)
+- `tags` (string, optional): Filter by tags
+- `limit` (number, optional): Maximum results - Default: 20
+- `detailed` (boolean, optional): Include detailed information - Default: false
+
+### 8. get_student_avatar
+Get student avatar images in various formats.
+
+**Parameters:**
+- `studentId` (number, optional): Student's unique ID
+- `name` (string, optional): Student name (alternative to ID)
+- `language` (string, optional): Language preference - Default: "cn"
+- `avatarType` (string, optional): Avatar type (portrait/collection/icon/lobby) - Default: "portrait"
+- `format` (string, optional): Output format (markdown/md) - Default: "markdown"
+
+## Usage Examples
+
+### Basic Student Search
 ```
-查询一下阿露的详细信息
-我想要2级帽子装备
-有什么团队战活动吗？
-查一下亚比学院的学生
-找一下阿露的所有变体版本
-获取学生的头像
+Find all students from Gehenna Academy
 ```
 
-## 测试工具
+### Detailed Student Information
+```
+Get detailed information about Shiroko including stats and skills
+```
 
-项目包含了多个测试脚本来验证功能：
+### Equipment Browsing
+```
+Show me all tier 6 weapons with detailed stats
+```
 
-### 1. 基础功能测试
+### Stage Information
+```
+Find all hard difficulty stages in chapter 3
+```
+
+### Avatar Display
+```
+Show me Hina's collection avatar in markdown format
+```
+
+## Development
+
+### Project Structure
+```
+blue_archive_mcp/
+├── src/
+│   └── index.ts          # Main server implementation
+├── dist/                 # Compiled JavaScript output
+├── package.json          # Project dependencies
+├── tsconfig.json         # TypeScript configuration
+└── README.md            # This file
+```
+
+### Building from Source
 ```bash
-node simple_test.cjs
-```
-测试基本的学生查询和变体查找功能。
+# Install dependencies
+npm install
 
-### 2. 全面功能测试
+# Build TypeScript
+npm run build
+
+# Start development server
+npm start
+```
+
+### Code Architecture
+
+The server is built with:
+- **TypeScript** for type safety and modern JavaScript features
+- **@modelcontextprotocol/sdk** for MCP protocol implementation
+- **Zod** for runtime type validation and schema generation
+- **SchaleDB API** as the primary data source
+
+### Key Components
+
+- **BlueArchiveMCPServer**: Main server class handling MCP protocol
+- **SchaleDBClient**: API client for data fetching
+- **ErrorHandler**: Centralized error handling and logging
+- **ParameterHandler**: Input validation and normalization
+- **Logger**: Structured logging system
+
+## Troubleshooting
+
+### Common Issues
+
+#### Connection Problems
+- **Symptom**: Server fails to start or connect
+- **Solution**: Check Node.js version (18+ required) and verify configuration paths
+
+#### Data Loading Failures
+- **Symptom**: API requests return empty results
+- **Solution**: Verify internet connection and SchaleDB API availability
+
+#### Tools Not Appearing
+- **Symptom**: Tools don't show up in Claude Desktop
+- **Solution**: Restart Claude Desktop after configuration changes
+
+### Debug Mode
+Enable debug logging by setting the environment variable:
 ```bash
-node comprehensive_test.cjs
+LOG_LEVEL=debug npm start
 ```
-测试所有工具的完整功能，包括：
-- 学生列表获取
-- 名称查找
-- 变体查找
-- 总力战信息
-- 装备查询
 
-## 数据来源
+### Performance Optimization
+- Data is cached for 5 minutes by default
+- Use `detailed=false` for faster responses when full data isn't needed
+- Limit result sets with the `limit` parameter
 
-所有数据来自 SchaleDB 网站 (https://schaledb.com)，这是蔚蓝档案游戏的权威数据源。
+## Contributing
 
-- 实时更新：数据与游戏版本同步更新
-- 多语言：完整支持所有官方语言版本
-- 免费可靠：社区维护，稳定性高
+We welcome contributions! Please follow these guidelines:
 
-## 示例查询
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
 
-### 学生信息
-- "找一些治疗学生" → 查询康复位置的学生
-- "哪些学生是突击队" → 查找Striker位置的学生
-- "阿比学院有什么学生" → 查询特定学校的学生
+### Development Guidelines
+- Follow TypeScript best practices
+- Add appropriate error handling
+- Include JSDoc comments for new functions
+- Test changes thoroughly before submitting
 
-### 装备系统
-- "显示所有3级装备" → 查看高级装备
-- "有什么手套装备" → 查找特定类别装备
-- "我需要Badge装备" → 饰品类装备查询
+## License
 
-### 战斗数据
-- "列出所有团队战" → 获取所有RAID活动
-- "查找困难团队战" → 查询高难度活动
-- "秋季活动的详细信息" → 具体活动信息
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 高级用法
+## Data Source
 
-### 缓存机制
-
-服务器实现了智能缓存：
-- 缓存时间：1小时
-- 自动过期：超过TTL自动刷新
-- 内存优化：防止内存泄漏
-
-### 错误处理
-
-- 网络错误重试机制
-- 数据不存在时友好提示
-- API调用超时保护
-
-### 性能优化
-
-- 支持压缩数据格式 (.min.json)
-- 分页查询结果
-- 并发网络请求处理
-
-## 故障排除
-
-### 连接问题
-1. 确认路径配置正确
-2. 检查 Node.js 版本 (需要 v18+)
-3. 验证构建文件存在
-
-### 数据加载失败
-1. 检查网络连接
-2. 确认 SchaleDB 服务可用
-3. 查看 LLM assistant 日志
-
-### 工具不显示
-1. 重启 LLM assistant
-2. 检查配置文件语法
-3. 确认服务器进程正在运行
-
-## 未来功能计划
-
-### 🚀 即将实现的功能
-
-#### 1. 语音系统重构 🎵
-- **目标**: 重新设计语音功能，解决当前的数据显示问题
-- **计划**: 
-  - 优化语音数据结构和输出格式
-  - 支持多种语音类型（战斗、大厅、活动等）
-  - 添加音频播放链接和控件
-  - 批量语音获取功能
-
-#### 2. 学生技能详情 ⚡
-- **目标**: 提供完整的学生技能信息
-- **计划**:
-  - 技能描述和效果详情
-  - 技能升级数据
-  - 技能动画和图标
-  - 技能搭配推荐
-
-#### 3. 装备强化系统 🔧
-- **目标**: 完善装备相关功能
-- **计划**:
-  - 装备强化材料需求
-  - 装备获取途径详情
-  - 装备搭配推荐
-  - 装备效果计算器
-
-#### 4. 活动和关卡信息 🎯
-- **目标**: 添加游戏内容查询功能
-- **计划**:
-  - 主线关卡信息
-  - 活动关卡详情
-  - 掉落物品查询
-  - 关卡攻略建议
-
-#### 5. 学生培养指南 📚
-- **目标**: 提供角色培养建议
-- **计划**:
-  - 学生评级和定位分析
-  - 培养优先级推荐
-  - 技能升级建议
-  - 装备搭配方案
-
-#### 6. 数据可视化 📊
-- **目标**: 提供图表和可视化数据
-- **计划**:
-  - 学生属性对比图表
-  - 装备效果可视化
-  - 团队战数据分析
-  - 活动奖励统计
-
-### 🔮 长期规划
-
-#### 1. 实时数据同步 🔄
-- 与游戏服务器数据实时同步
-- 自动更新游戏版本变更
-- 推送重要更新通知
-
-#### 2. 个性化推荐 🎯
-- 基于用户查询历史的智能推荐
-- 个性化学生和装备建议
-- 自定义关注列表
-
-#### 3. 社区功能 👥
-- 用户评论和评分系统
-- 攻略分享平台
-- 社区投票和排行榜
-
-#### 4. 移动端支持 📱
-- 移动设备优化
-- 响应式界面设计
-- 离线数据缓存
-
-#### 5. API 扩展 🔌
-- RESTful API 接口
-- GraphQL 支持
-- 第三方集成能力
-
-### 📝 贡献指南
-
-如果您对以上功能有建议或想要参与开发，欢迎：
-
-1. 提交 Issue 描述需求或问题
-2. Fork 项目并提交 Pull Request
-3. 参与讨论和功能设计
-4. 提供测试和反馈
-
-## 技术说明
-
-- **框架**: TypeScript + MCP SDK
-- **传输**: STDIO (标准输入输出)
-- **缓存**: 内存 Map 实现
-- **网络**: 原生 fetch API
-- **错误处理**: 完整的异常捕获和友好提示
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request 来改进这个工具！
+This server uses data from [SchaleDB](https://schaledb.com/), an open-source Blue Archive database. All game assets and data are property of their respective owners.
 
 ---
 
-**数据使用免责声明**: 本工具仅用于学习和娱乐目的，游戏数据来源于 SchaleDB，请遵守相关法律法规和游戏使用条款。
+**Note**: This is an unofficial tool created by fans for the Blue Archive community. It is not affiliated with or endorsed by the game's official developers.
