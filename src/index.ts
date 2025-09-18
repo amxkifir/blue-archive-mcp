@@ -894,29 +894,68 @@ class SchaleDBClient {
     return limitedStudents.map(student => this.simplifyStudentData(student, detailed));
   }
 
-  // 通过名称查询学生 - 精确匹配
+  // 通过名称查询学生 - 支持多语言字段搜索和跨语言搜索
   async getStudentByName(name: string, language: string = 'cn', detailed: boolean = false): Promise<Student | null> {
-    this.logger.log(`按名称精确查询学生: ${name}`);
+    this.logger.log(`按名称查询学生: ${name}`);
     
-    // 获取所有学生数据 - 数据结构是以ID为键的对象
-    const data = await this.fetchData(`${language}/students.json`);
-    if (!data || typeof data !== 'object') {
-      return null;
-    }
-
-    // 精确匹配学生名称
     const normalizedSearchName = name.toLowerCase().trim();
     
-    // 遍历所有学生ID
-    for (const studentId of Object.keys(data)) {
-      const student = data[studentId];
-      if (!student || !student.Name) continue;
+    // 定义搜索函数
+    const searchInData = (data: any) => {
+      if (!data || typeof data !== 'object') {
+        return null;
+      }
       
-      // 精确匹配名称
-      const normalizedStudentName = student.Name.toLowerCase().trim();
-      if (normalizedStudentName === normalizedSearchName) {
-        // 应用数据精简
-        return this.simplifyStudentData(student, detailed);
+      // 遍历所有学生ID
+      for (const studentId of Object.keys(data)) {
+        const student = data[studentId];
+        if (!student) continue;
+        
+        // 检查多个名称字段
+        const fieldsToCheck = [
+          student.Name,           // 名称
+          student.DevName,        // 英文名
+          student.FamilyName,     // 姓氏
+          student.PersonalName,   // 名字
+          student.PathName,       // 路径名
+          // 组合字段
+          student.FamilyName && student.PersonalName ? `${student.FamilyName}${student.PersonalName}` : null,
+          student.FamilyName && student.PersonalName ? `${student.FamilyName} ${student.PersonalName}` : null
+        ];
+        
+        // 检查是否有任何字段匹配
+        for (const field of fieldsToCheck) {
+          if (field && typeof field === 'string') {
+            const normalizedField = field.toLowerCase().trim();
+            // 支持精确匹配和包含匹配
+            if (normalizedField === normalizedSearchName || normalizedField.includes(normalizedSearchName)) {
+              return student;
+            }
+          }
+        }
+      }
+      return null;
+    };
+    
+    // 首先在指定语言中搜索
+    const primaryData = await this.fetchData(`${language}/students.json`);
+    let foundStudent = searchInData(primaryData);
+    
+    if (foundStudent) {
+      return this.simplifyStudentData(foundStudent, detailed);
+    }
+    
+    // 如果在主要语言中没找到，尝试其他语言
+    const languagesToTry = ['cn', 'jp', 'en', 'kr', 'th'].filter(lang => lang !== language);
+    
+    for (const lang of languagesToTry) {
+      this.logger.log(`在 ${lang} 语言数据中搜索: ${name}`);
+      const data = await this.fetchData(`${lang}/students.json`);
+      foundStudent = searchInData(data);
+      
+      if (foundStudent) {
+        this.logger.log(`在 ${lang} 语言数据中找到匹配: ${foundStudent.Name}`);
+        return this.simplifyStudentData(foundStudent, detailed);
       }
     }
 
@@ -1650,7 +1689,7 @@ class BlueArchiveMCPServer {
       {
         name: "blue-archive-mcp",
         title: "Blue Archive MCP Server",
-        version: "1.7.0",
+        version: "1.7.1",
       },
       {
         capabilities: {
